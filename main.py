@@ -46,6 +46,8 @@ class CompressFramework:
             pbar.update(1)
             if sampler.judge_eval(self.compress_opt.Eval.epochs):
                 time_eval_start = time.time()
+                # predict 相当于解压缩，遍历输入数据的每一个点得出预测的值 eg: 512*512*512
+                # TODO  batch_size 失效，后续可以考虑去掉这个参数 
                 predict_data = tree_mlp.predict(device=self.compress_opt.Eval.device, batch_size=self.compress_opt.Eval.batch_size)
                 metrics['decode_time'] = time.time()-time_eval_start
                 psnr, ssim, acc200, acc500 = eval_performance(self.origin_data, predict_data)

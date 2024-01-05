@@ -27,7 +27,7 @@ class Node():
         # 属于自己的那一块
         # TODO 可以考虑ghost cell，如果后续出现缝隙的话
         self.data = origin_data[self.d1:self.d2, self.h1:self.h2, self.w1:self.w2]
-        self.data = rearrange(self.data, 'd h w n-> (d h w) n')
+        self.data = rearrange(self.data, 'd h w n-> (d h w) n') # 扁平化
         self.children = []
         self.predict_data = np.zeros_like(self.data)
         # TODO 后续可以考虑使用，虽然不再采用原作者的下层继承上层，但可以延续原作者的同一层参数分配的思路
@@ -47,7 +47,7 @@ class Node():
 
 
 def normalize_data(data: np.ndarray, scale_min, scale_max):
-    dtype = data.dtype
+    dtype = data.dtype  # 存储了原始数据的数据类型
     data = data.astype(np.float32)
     data_min, data_max = data.min(), data.max()
     data = (data - data_min)/(data_max - data_min)
@@ -186,11 +186,12 @@ class OctTreeMLP(nn.Module):
         #         param = self.level_param[node.level]/8**node.level
 
         # 根据新的设计，只有最后一层设置MLP
-        input, output = self.opt.Network.input, self.opt.Network.output
+        if self.max_level != self.max_level:
+            return
+        
         # TODO 设计好 level数、参数个数、MLP的层数的权衡
         # TODO 这样的话，解压缩得是并行的才快？
-        if self.max_level == self.max_level:
-            pass
+        input, output = self.opt.Network.input, self.opt.Network.output
         # 根据input和output的大小计算这个节点的MLP的hiden（隐藏层）的层数和output的大小
         hidden, output = cal_hidden_output(param=param, layer=layer, input=input, output=output)
         node.init_network(input=input, output=output, hidden=hidden, layer=layer, act=act, output_act=output_act, w0=self.opt.Network.w0)  # 构建这一节点的MLP
@@ -255,35 +256,57 @@ class OctTreeMLP(nn.Module):
         return self.params_total
 
     """predict in batches"""
-
+    # 每次轮到eval的时候会调用，比较指标，比较的是全体数据，而不是取样！！！
     def predict(self, device: str = 'cpu', batch_size: int = 128):                      # TODO 为什么不用GPU？
+        batch_size = min(self.data.shape[0], self.data.shape[1], self.data.shape[2])    # 为了后面predict方便
+        assert self.data.shape[0] == self.data.shape[1] and self.data.shape[0] == self.data.shape[2], "要求三维的长宽高一样，不一样的情况暂时未设计" # TODO 后面可以考虑加上，但会非常麻烦
         self.predict_data = np.zeros_like(self.data)
         self.move2device(device=device)
         coords = self.sampler.coords.to(device)
-        # for index in range(0, coords.shape[0], batch_size):
+        # coords.shape[0]表示的是coords的第一维的长度，即coords的长度，全体坐标，eg: 512*512*512
         for index in tqdm(range(0, coords.shape[0], batch_size), desc='Decompressing', leave=False, file=sys.stdout):
+            # 这里的coords是扁平化的坐标，相当于是用一个一维的坐标来表示三维的坐标
+            # coords[index:index+batch_size]表示的是从index开始的batch_size个连续的坐标
             input = coords[index:index+batch_size]
+            # predict是树调用的，predict_dfs的结果是计算出节点的predict_data
             self.predict_dfs(self.base_node, index, batch_size, input)
         self.merge()
-        # self.predict_data = self.predict_data.detach().numpy()
+        # predict_data是最下面一层叶节点那一块的预测值
         self.predict_data = self.predict_data.clip(self.side_info['scale_min'], self.side_info['scale_max'])
         self.predict_data = invnormalize_data(self.predict_data, **self.side_info)
         self.move2device(device=self.device)
         return self.predict_data
 
     def predict_dfs(self, node, index, batch_size, input):
+        # 因为原设计是八叉树的每个节点都有MLP，新设计的只有叶节点有MLP
+        # 这里后面需要修改以下，最小程度的修改，就是让非叶子节点的输出等于输入
+        min_dimension_size = min(self.data.shape[0], self.data.shape[1], self.data.shape[2])
+        assert min_dimension_size % batch_size == 0, "batch_size must be divisible by the smallest block dimension"
         if len(node.children) > 0:
-            input = node.net(input)
-            children = node.children
+            # input = node.net(input)
+            # 需要要保证coords[index:index+batch_size]这batch_size在一个块内，以便处理
+            # 这就需要保证batch_size可以被块的行，宽，高中的最小值整除
+            # TODO 这里可能可以继续优化
+            ds, hs, ws = self.data.shape[0]//(2**(level + 1)), self.data.shape[1]//(2**(level + 1)), self.data.shape[2]//(2**(level + 1))
+            # 区间的左边界和右边界  1和2
+            # self.d1, self.d2 = self.di*self.ds, (self.di+1)*self.ds
+            # self.h1, self.h2 = self.hi*self.hs, (self.hi+1)*self.hs
+            # self.w1, self.w2 = self.wi*self.ws, (self.wi+1)*self.ws
+            z = index // (hs * ws)
+            y = (index % (hs * ws)) // ws
+            x = (index % (hs * ws)) % ws
+            children = node.children             
             for child in children:
-                self.predict_dfs(child, index, batch_size, input)
+                if child.d1 <= z*ds and child.d2 > z*ds and child.h1 <= y*hs and child.h2 > y*hs and child.w1 <= x*ws and child.w2 > x*ws:
+                    self.predict_dfs(child, index, batch_size, input)
         else:
             node.predict_data[index:index+batch_size] = node.net(input).detach().cpu().numpy()
 
     def merge(self):
         for node in self.leaf_node_list:
-            chunk = node.predict_data
+            chunk = node.predict_data  # 节点的predict_data
             chunk = rearrange(chunk, '(d h w) n -> d h w n', d=node.ds, h=node.hs, w=node.ws)
+            # 下面的是树的predict_data，和上面那个区分开
             self.predict_data[node.d1:node.d2, node.h1:node.h2, node.w1:node.w2] = chunk
 
     """cal loss during training"""
@@ -314,11 +337,3 @@ class OctTreeMLP(nn.Module):
             # label = node.data[idxs:idxs+self.sampler.batch_size, :].to(self.device)
             label = node.data[idxs, :].to(self.device)
             self.loss = self.loss + self.l2loss(label, predict)
-
-    """TODO"""
-
-    def change_net(self):
-        pass
-
-    def optimi_branch(self):
-        pass

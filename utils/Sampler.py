@@ -30,6 +30,9 @@ def create_lr_scheduler(optimizer, lr_scheduler_opt):
         raise NotImplementedError
     return lr_scheduler
 
+# 扁平化过程：在扁平化过程中，这些三维坐标被转换为一维序列。这通常通过按照某种顺序（例如，先 X 轴、再 Y 轴、
+# 最后 Z 轴，或者任何其他顺序）遍历每个点来完成。结果是一个长列表或数组，其中包含了连续的坐标值。
+# 这里的shape就是数据的长宽高，eg: 512*512*512
 def create_flattened_coords(coords_shape:Tuple) -> torch.Tensor:
     minimum = -1
     maximum = 1
@@ -40,6 +43,7 @@ def create_flattened_coords(coords_shape:Tuple) -> torch.Tensor:
     axis=-1)
     flattened_coords = rearrange(coords,'d h w c -> (d h w) c')
     return flattened_coords
+
 class PointSampler:
     def __init__(self, data: torch.Tensor, max_level:int, batch_size: int, epochs:int, device:str='cpu') -> None:
         self.batch_size = int(batch_size/8**max_level)
