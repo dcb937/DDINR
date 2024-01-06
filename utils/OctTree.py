@@ -102,6 +102,7 @@ class OctTreeMLP(nn.Module):
         self.sampler = self.init_sampler()
         self.optimizer = self.init_optimizer()
         self.lr_scheduler = self.init_lr_scheduler()
+        self.node_hash = {}   # 新增
 
     """init tree structure"""
 
@@ -239,6 +240,7 @@ class OctTreeMLP(nn.Module):
                 self.tree2list_dfs(child)
         else:
             self.leaf_node_list.append(node)
+            self.node_hash[(node.d1, node.h1, node.w1)] = node
 
     def move2device(self, device: str = 'cpu'):
         for node in self.node_list:
@@ -306,7 +308,7 @@ class OctTreeMLP(nn.Module):
             # 需要要保证coords[index:index+batch_size]这batch_size在一个块内，以便处理
             # 这就需要保证batch_size可以被块的行，宽，高中的最小值整除
             # TODO 这里可能可以继续优化
-            ds, hs, ws = self.data.shape[0]//(2**(level + 1)), self.data.shape[1]//(2**(level + 1)), self.data.shape[2]//(2**(level + 1))
+            ds, hs, ws = self.data.shape[0]//(2**(node.level + 1)), self.data.shape[1]//(2**(node.level + 1)), self.data.shape[2]//(2**(node.level + 1))
             # 区间的左边界和右边界  1和2
             # self.d1, self.d2 = self.di*self.ds, (self.di+1)*self.ds
             # self.h1, self.h2 = self.hi*self.hs, (self.hi+1)*self.hs
@@ -339,7 +341,7 @@ class OctTreeMLP(nn.Module):
         loss = F.mse_loss(data_gt, data_hat, reduction='none')
         weight = torch.ones_like(data_gt)
         l, h, scale = self.loss_weight
-        weight[(data_gt >= l)*(data_gt <= h)] = scale
+        weight[(data_gt >= l)*(data_gt <= h)] = scale  # 对于 data_gt 中的值位于 [l, h] 区间内的元素，它们在 weight 张量中对应的权重被设置为 scale ， 根据yaml文件，权重更小，即认为不重要
         loss = loss*weight
         loss = loss.mean()
         return loss
@@ -351,8 +353,31 @@ class OctTreeMLP(nn.Module):
         return self.loss
 
     def forward_dfs(self, node, idxs, input):
+        # # TODO 后续进一步优化，如果每一次的迭代只在一个叶子节点里面取会快很多
+        # coords_3d = [(idx // (self.data.shape[1] * self.data.hape[2]),
+        #               (idx % (self.data.shape[1] * self.data.shape[2])) // self.data.shape[2],
+        #               idx % self.data.shape[2]) for idx in input]
+
+        # for point in coords_3d:
+        #     d_floor = point[0] - point[0] % (self.data.shape[0]//(2**max_level))
+        #     h_floor = point[1] - point[1] % (self.data.shape[1]//(2**max_level))
+        #     w_floor = point[2] - point[2] % (self.data.shape[2]//(2**max_level))
+
+        #     try:
+        #         leaf_node = self.node_hash[(d_floor, h_floor, w_floor)]
+        #     except KeyError:
+        #         print(f"Error: 坐标的下边界 '{(d_floor, h_floor, w_floor)}' 找不到对应的node")
+
+        #     point_tensor = torch.tensor(point)
+        #     predicts.append(leaf_node.net(point_tensor))
+        #     labels.append(leaf_node.data[point[0], point[1], point[2]])
+
+        # predicts_tensor = torch.stack(predicts)
+        # labels_tensor = torch.stack(labels)
+
         if len(node.children) > 0:
-            input = node.net(input)
+            # input = node.net(input)
+
             children = node.children
             for child in children:
                 self.forward_dfs(child, idxs, input)

@@ -4,7 +4,8 @@ from typing import Tuple
 import copy
 import math
 
-def create_optim(name, parameters ,lr):
+
+def create_optim(name, parameters, lr):
     if name == 'Adam':
         optimizer = torch.optim.Adam(parameters, lr=lr)
     elif name == 'Adamax':
@@ -15,17 +16,18 @@ def create_optim(name, parameters ,lr):
         raise NotImplemented
     return optimizer
 
+
 def create_lr_scheduler(optimizer, lr_scheduler_opt):
     lr_scheduler_opt = copy.deepcopy(lr_scheduler_opt)
     lr_scheduler_name = lr_scheduler_opt.pop('name')
     if lr_scheduler_name == 'MultiStepLR':
-        lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer,**lr_scheduler_opt)
+        lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, **lr_scheduler_opt)
     elif lr_scheduler_name == 'CyclicLR':
-        lr_scheduler = torch.optim.lr_scheduler.CyclicLR(optimizer,**lr_scheduler_opt)
+        lr_scheduler = torch.optim.lr_scheduler.CyclicLR(optimizer, **lr_scheduler_opt)
     elif lr_scheduler_name == 'StepLR':
-        lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer,**lr_scheduler_opt)
+        lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, **lr_scheduler_opt)
     elif lr_scheduler_name == 'none':
-        lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer,milestones=[100000000000])
+        lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[100000000000])
     else:
         raise NotImplementedError
     return lr_scheduler
@@ -33,35 +35,39 @@ def create_lr_scheduler(optimizer, lr_scheduler_opt):
 # 扁平化过程：在扁平化过程中，这些三维坐标被转换为一维序列。这通常通过按照某种顺序（例如，先 X 轴、再 Y 轴、
 # 最后 Z 轴，或者任何其他顺序）遍历每个点来完成。结果是一个长列表或数组，其中包含了连续的坐标值。
 # 这里的shape就是数据的长宽高，eg: 512*512*512
-def create_flattened_coords(coords_shape:Tuple) -> torch.Tensor:
+
+
+def create_flattened_coords(coords_shape: Tuple) -> torch.Tensor:
     minimum = -1
     maximum = 1
     coords = torch.stack(torch.meshgrid(
         torch.linspace(minimum, maximum, coords_shape[0]),
         torch.linspace(minimum, maximum, coords_shape[1]),
         torch.linspace(minimum, maximum, coords_shape[2]), indexing='ij'),
-    axis=-1)
-    flattened_coords = rearrange(coords,'d h w c -> (d h w) c')
+        axis=-1)
+    flattened_coords = rearrange(coords, 'd h w c -> (d h w) c')
     return flattened_coords
 
+
 class PointSampler:
-    def __init__(self, data: torch.Tensor, max_level:int, batch_size: int, epochs:int, device:str='cpu') -> None:
-        self.batch_size = int(batch_size/8**max_level)
-        assert self.batch_size>512 and self.batch_size<2097152, "Batch size error"
+    def __init__(self, data: torch.Tensor, max_level: int, batch_size: int, epochs: int, device: str = 'cpu') -> None:
+        self.batch_size = int(batch_size/8**max_level)   # max_level 从0开始，2层就是1
+        assert self.batch_size > 512 and self.batch_size < 2097152, "Batch size error"
         # self.batch_size = int(batch_size)
         self.epochs = epochs
         self.device = device
-        assert data.shape[0]%2**max_level==0 and data.shape[1]%2**max_level==0 and data.shape[1]%2**max_level==0, f"{data.shape} can't be devided by 2^{max_level}"
+        assert data.shape[0] % 2**max_level == 0 and data.shape[1] % 2**max_level == 0 and data.shape[
+            1] % 2**max_level == 0, f"{data.shape} can't be devided by 2^{max_level}"
         self.shape = (data.shape[0]//2**max_level, data.shape[1]//2**max_level, data.shape[2]//2**max_level)
         self.coords = create_flattened_coords(self.shape).to(device)
         self.pop_size = self.shape[0]*self.shape[1]*self.shape[2]
         self.evaled_epochs = []
-    
+
     def judge_eval(self, eval_epoch):
-        if self.epochs_count%eval_epoch==0 and self.epochs_count!=0 and not (self.epochs_count in self.evaled_epochs):
+        if self.epochs_count % eval_epoch == 0 and self.epochs_count != 0 and not (self.epochs_count in self.evaled_epochs):
             self.evaled_epochs.append(self.epochs_count)
             return True
-        elif self.index>=self.pop_size and self.epochs_count>=self.epochs-1:
+        elif self.index >= self.pop_size and self.epochs_count >= self.epochs-1:
             self.epochs_count = self.epochs
             return True
         else:
@@ -78,7 +84,7 @@ class PointSampler:
     def __next__(self):
         if self.index < self.pop_size:
             # sampled_idxs = self.index
-            sampled_idxs = torch.randint(0, self.pop_size, (self.batch_size,))
+            sampled_idxs = torch.randint(0, self.pop_size, (self.batch_size,))  # 随机取self.batch_size个点，但注意，这里的self.batch_size可不是yaml文件里面的batchsize
             sampled_coords = self.coords[sampled_idxs, :]
             sampled_coords = sampled_coords.to(self.device)
             self.index += self.batch_size

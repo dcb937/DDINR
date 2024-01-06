@@ -9,8 +9,8 @@ Dynamic:
     - CONCAT:
       - CompressFramwork.Train.batch_size: 262144
         CompressFramwork.Train.epochs: 20000
-        CompressFramwork.Eval.batch_size: 262144
-        CompressFramwork.Eval.epochs: 100
+        CompressFramwork.Eval.batch_size: 262144   # 废弃
+        CompressFramwork.Eval.epochs: 2000
 
     - CONCAT:
       - CompressFramwork.Network.level_info: [[1.0, 5, Sine, aoi]]   # 第一个值废弃，只有最后一层的layer管用
@@ -39,7 +39,7 @@ Static:
         name: MultiStepLR
         milestones: [20000,50000]
         gamma: 0.2
-      weight: [2001,65535,0.01]
+      weight: [2001,65535,0.01]    # TODO 损失函数的权重，这个一般应该如何设置，也许可以通过getscale.py来得到？
     Eval:
       batch_size: 262144   # 废弃
       epochs: 1000
