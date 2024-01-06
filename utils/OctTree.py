@@ -88,6 +88,7 @@ class OctTreeMLP(nn.Module):
     def __init__(self, opt) -> None:
         super().__init__()
         self.opt = opt
+        self.node_hash = {}   # 新增
         self.max_level = len(opt.Network.level_info)-1
         self.data_path = opt.Path
         self.device = opt.Train.device
@@ -102,7 +103,6 @@ class OctTreeMLP(nn.Module):
         self.sampler = self.init_sampler()
         self.optimizer = self.init_optimizer()
         self.lr_scheduler = self.init_lr_scheduler()
-        self.node_hash = {}   # 新增
 
     """init tree structure"""
 
