@@ -1,2 +1,2 @@
 outputs
-utils\_pycache
+*.pyc
