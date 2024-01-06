@@ -13,7 +13,7 @@ Dynamic:
         CompressFramwork.Eval.epochs: 100
 
     - CONCAT:
-      - CompressFramwork.Network.level_info: [[1.0, 5, Sine, aoi]]
+      - CompressFramwork.Network.level_info: [[1.0, 5, Sine, aoi]]   # 第一个值废弃，只有最后一层的layer管用
         Log.project_name: default0
       - CompressFramwork.Network.level_info: [[1.0, 2, Sine, aoi], [1.0, 3, Sine, aoi]]
         Log.project_name: default1
@@ -41,7 +41,7 @@ Static:
         gamma: 0.2
       weight: [2001,65535,0.01]
     Eval:
-      batch_size: 262144
+      batch_size: 262144   # 废弃
       epochs: 1000
       device: cuda
     Preprocess:

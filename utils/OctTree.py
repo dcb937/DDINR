@@ -27,8 +27,9 @@ class Node():
         # 属于自己的那一块
         # TODO 可以考虑ghost cell，如果后续出现缝隙的话
         self.data = origin_data[self.d1:self.d2, self.h1:self.h2, self.w1:self.w2]
-        self.data = rearrange(self.data, 'd h w n-> (d h w) n') # 扁平化
+        self.data = rearrange(self.data, 'd h w n-> (d h w) n')  # 扁平化
         self.children = []
+        self.param = 0     # 新加的
         self.predict_data = np.zeros_like(self.data)
         # TODO 后续可以考虑使用，虽然不再采用原作者的下层继承上层，但可以延续原作者的同一层参数分配的思路
         self.aoi = float((self.data > 0).sum())
@@ -122,6 +123,7 @@ class OctTreeMLP(nn.Module):
         origin_bytes = os.path.getsize(self.data_path)
         ideal_bytes = int(origin_bytes/ratio)
         ideal_params = int(ideal_bytes/4)
+        self.ideal_params = ideal_params   # 新加的
         level_info = self.opt.Network.level_info
         # TODO  后续要改
         node_ratios = [info[0] for info in level_info]                          # 树每层level的 节点的参数的ratio
@@ -179,21 +181,37 @@ class OctTreeMLP(nn.Module):
         #     if self.level_allocate[node.level] == 'equal':
         #         param = self.level_param[node.level]/8**node.level
         #     elif self.level_allocate[node.level] == 'aoi':
-        #         param = self.level_param[node.level]*node.aoi/self.base_node.aoi
+        #         param = self.level_param[node.level]*node.aoi/self.base_node.aoi  # TODO TINC代码这里是不是写错了？？后续可以测试一下
         #     elif self.level_allocate[node.level] == 'var':
         #         param = self.level_param[node.level]*node.var/sum([child.var for child in node.parent.children])
         #     else:
         #         param = self.level_param[node.level]/8**node.level
 
+        if self.max_level == 0:                                                                 # 如果只有一层，那么这一层的输入输出的个数就是配置文件里面设置的
+            node.param = self.ideal_params
+        elif node.level == 0:                                                                   # output设为none 意味着输出层的维度并未预先固定，而是根据某些条件或计算来动态确定。
+            node.param = self.ideal_params
+        else:
+            if self.level_allocate[node.level] == 'equal':
+                node.param = node.parent.param / 8
+            elif self.level_allocate[node.level] == 'aoi':
+                node.param = node.parent.param * node.aoi / sum([child.aoi for child in node.parent.children])
+            elif self.level_allocate[node.level] == 'var':
+                node.param = node.parent.param * node.var / sum([child.var for child in node.parent.children])
+            else:
+                sys.exit("未设置该层分配策略")
+                # node.param = node.parent.param / 8
         # 根据新的设计，只有最后一层设置MLP
         if self.max_level != self.max_level:
             return
-        
+
+        assert node.param > 0, 'node.param 应当 > 0'
         # TODO 设计好 level数、参数个数、MLP的层数的权衡
         # TODO 这样的话，解压缩得是并行的才快？
         input, output = self.opt.Network.input, self.opt.Network.output
+        output_act = False
         # 根据input和output的大小计算这个节点的MLP的hiden（隐藏层）的层数和output的大小
-        hidden, output = cal_hidden_output(param=param, layer=layer, input=input, output=output)
+        hidden, output = cal_hidden_output(param=node.param, layer=layer, input=input, output=output)
         node.init_network(input=input, output=output, hidden=hidden, layer=layer, act=act, output_act=output_act, w0=self.opt.Network.w0)  # 构建这一节点的MLP
         if not f'Level{node.level}' in self.net_structure.keys():
             self.net_structure[f'Level{node.level}'] = {}
@@ -235,7 +253,7 @@ class OctTreeMLP(nn.Module):
     def init_optimizer(self):
         name = self.opt.Train.optimizer.type
         lr = self.opt.Train.optimizer.lr
-        parameters = [{'params': node.net.net.parameters()} for node in self.node_list]
+        parameters = [{'params': node.net.net.parameters()} for node in self.leaf_node_list]   # 将原先的node_list改为了leaf_node_list
         self.optimizer = create_optim(name, parameters, lr)
         return self.optimizer
 
@@ -245,7 +263,7 @@ class OctTreeMLP(nn.Module):
 
     def cal_params_total(self):
         self.params_total = 0
-        for node in self.node_list:
+        for node in self.leaf_node_list:   # 修改，只算叶子结点的params，因为在新的设计中，只有叶子节点有MLP
             self.params_total += sum([p.data.nelement() for p in node.net.net.parameters()])
         bytes = self.params_total*4
         origin_bytes = os.path.getsize(self.data_path)
@@ -257,9 +275,10 @@ class OctTreeMLP(nn.Module):
 
     """predict in batches"""
     # 每次轮到eval的时候会调用，比较指标，比较的是全体数据，而不是取样！！！
+
     def predict(self, device: str = 'cpu', batch_size: int = 128):                      # TODO 为什么不用GPU？
         batch_size = min(self.data.shape[0], self.data.shape[1], self.data.shape[2])    # 为了后面predict方便
-        assert self.data.shape[0] == self.data.shape[1] and self.data.shape[0] == self.data.shape[2], "要求三维的长宽高一样，不一样的情况暂时未设计" # TODO 后面可以考虑加上，但会非常麻烦
+        assert self.data.shape[0] == self.data.shape[1] and self.data.shape[0] == self.data.shape[2], "要求三维的长宽高一样，不一样的情况暂时未设计"  # TODO 后面可以考虑加上，但会非常麻烦
         self.predict_data = np.zeros_like(self.data)
         self.move2device(device=device)
         coords = self.sampler.coords.to(device)
@@ -295,10 +314,15 @@ class OctTreeMLP(nn.Module):
             z = index // (hs * ws)
             y = (index % (hs * ws)) // ws
             x = (index % (hs * ws)) % ws
-            children = node.children             
+            children = node.children
+            cnt_flag = False   # 为了测试
             for child in children:
                 if child.d1 <= z*ds and child.d2 > z*ds and child.h1 <= y*hs and child.h2 > y*hs and child.w1 <= x*ws and child.w2 > x*ws:
                     self.predict_dfs(child, index, batch_size, input)
+                    if cnt_flag == False:
+                        cnt_flag = True
+                    else:
+                        sys.exit("应该只有一个")
         else:
             node.predict_data[index:index+batch_size] = node.net(input).detach().cpu().numpy()
 
@@ -335,5 +359,5 @@ class OctTreeMLP(nn.Module):
         else:
             predict = node.net(input)
             # label = node.data[idxs:idxs+self.sampler.batch_size, :].to(self.device)
-            label = node.data[idxs, :].to(self.device)
+            label = node.data[idxs, :].to(self.device)   # 获取标签，即真实数据
             self.loss = self.loss + self.l2loss(label, predict)
