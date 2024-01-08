@@ -203,23 +203,23 @@ class OctTreeMLP(nn.Module):
                 sys.exit("未设置该层分配策略")
                 # node.param = node.parent.param / 8
         # 根据新的设计，只有最后一层设置MLP
-        if self.max_level != self.max_level:
-            return
+        if node.level == self.max_level:
+            # TODO 设计好 level数、参数个数、MLP的层数的权衡
+            # TODO 这样的话，解压缩得是并行的才快？
+            input, output = self.opt.Network.input, self.opt.Network.output
+            output_act = False
+            # 根据input和output的大小计算这个节点的MLP的hiden（隐藏层）的层数和output的大小
+            hidden, output = cal_hidden_output(param=node.param, layer=layer, input=input, output=output)
+            node.init_network(input=input, output=output, hidden=hidden, layer=layer, act=act, output_act=output_act, w0=self.opt.Network.w0)  # 构建这一节点的MLP
+            if not f'Level{node.level}' in self.net_structure.keys():
+                self.net_structure[f'Level{node.level}'] = {}
+            # self.net_structure[f'Level{node.level}'][f'{node.di}-{node.hi}-{node.wi}'] = node.net.hyper
+            hyper = node.net.hyper
+            self.net_structure[f'Level{node.level}'][f'{node.di}-{node.hi}-{node.wi}'] = '{}->{}->{}({}&{}&{})'.format(
+                hyper['input'], hyper['hidden'], hyper['output'], hyper['layer'], hyper['act'], hyper['output_act'])
 
-        assert node.param > 0, 'node.param 应当 > 0'
-        # TODO 设计好 level数、参数个数、MLP的层数的权衡
-        # TODO 这样的话，解压缩得是并行的才快？
-        input, output = self.opt.Network.input, self.opt.Network.output
-        output_act = False
-        # 根据input和output的大小计算这个节点的MLP的hiden（隐藏层）的层数和output的大小
-        hidden, output = cal_hidden_output(param=node.param, layer=layer, input=input, output=output)
-        node.init_network(input=input, output=output, hidden=hidden, layer=layer, act=act, output_act=output_act, w0=self.opt.Network.w0)  # 构建这一节点的MLP
-        if not f'Level{node.level}' in self.net_structure.keys():
-            self.net_structure[f'Level{node.level}'] = {}
-        # self.net_structure[f'Level{node.level}'][f'{node.di}-{node.hi}-{node.wi}'] = node.net.hyper
-        hyper = node.net.hyper
-        self.net_structure[f'Level{node.level}'][f'{node.di}-{node.hi}-{node.wi}'] = '{}->{}->{}({}&{}&{})'.format(
-            hyper['input'], hyper['hidden'], hyper['output'], hyper['layer'], hyper['act'], hyper['output_act'])
+        # print('At level {}, number of param is {}'.format(node.level, node.param))
+
         children = node.children
         for child in children:
             self.init_network_dfs(child)
@@ -244,7 +244,9 @@ class OctTreeMLP(nn.Module):
 
     def move2device(self, device: str = 'cpu'):
         for node in self.node_list:
-            node.net = node.net.to(device)
+            children = node.children
+            if len(children) == 0:
+                node.net = node.net.to(device)           # 新设计中只有叶节点有net
 
     def init_sampler(self):
         batch_size = self.opt.Train.batch_size
@@ -278,13 +280,11 @@ class OctTreeMLP(nn.Module):
     """predict in batches"""
     # 每次轮到eval的时候会调用，比较指标，比较的是全体数据，而不是取样！！！
 
-    def predict(self, device: str = 'cpu', batch_size: int = 128):                      # TODO 为什么不用GPU？
-        batch_size = min(self.data.shape[0], self.data.shape[1], self.data.shape[2])    # 为了后面predict方便
-        assert self.data.shape[0] == self.data.shape[1] and self.data.shape[0] == self.data.shape[2], "要求三维的长宽高一样，不一样的情况暂时未设计"  # TODO 后面可以考虑加上，但会非常麻烦
+    def predict(self, device: str = 'cpu', batch_size: int = 128):                      # main调用的时候指定了坐标
         self.predict_data = np.zeros_like(self.data)
         self.move2device(device=device)
         coords = self.sampler.coords.to(device)
-        # coords.shape[0]表示的是coords的第一维的长度，即coords的长度，全体坐标，eg: 512*512*512
+        # coords.shape[0]表示的是coords的第一维的长度，即coords的长度，但注意并不是全体坐标，coords只是叶子节点的体积，eg: ( 512/(8**level) )*( 512/(8**level) )*( 512/(8**level) )
         for index in tqdm(range(0, coords.shape[0], batch_size), desc='Decompressing', leave=False, file=sys.stdout):
             # 这里的coords是扁平化的坐标，相当于是用一个一维的坐标来表示三维的坐标
             # coords[index:index+batch_size]表示的是从index开始的batch_size个连续的坐标
@@ -300,33 +300,14 @@ class OctTreeMLP(nn.Module):
 
     def predict_dfs(self, node, index, batch_size, input):
         # 因为原设计是八叉树的每个节点都有MLP，新设计的只有叶节点有MLP
-        # 这里后面需要修改以下，最小程度的修改，就是让非叶子节点的输出等于输入
-        min_dimension_size = min(self.data.shape[0], self.data.shape[1], self.data.shape[2])
-        assert min_dimension_size % batch_size == 0, "batch_size must be divisible by the smallest block dimension"
+        # 这里后面需要修改以下，就是让非叶子节点的输出等于输入
         if len(node.children) > 0:
             # input = node.net(input)
-            # 需要要保证coords[index:index+batch_size]这batch_size在一个块内，以便处理
-            # 这就需要保证batch_size可以被块的行，宽，高中的最小值整除
-            # TODO 这里可能可以继续优化
-            ds, hs, ws = self.data.shape[0]//(2**(node.level + 1)), self.data.shape[1]//(2**(node.level + 1)), self.data.shape[2]//(2**(node.level + 1))
-            # 区间的左边界和右边界  1和2
-            # self.d1, self.d2 = self.di*self.ds, (self.di+1)*self.ds
-            # self.h1, self.h2 = self.hi*self.hs, (self.hi+1)*self.hs
-            # self.w1, self.w2 = self.wi*self.ws, (self.wi+1)*self.ws
-            z = index // (hs * ws)
-            y = (index % (hs * ws)) // ws
-            x = (index % (hs * ws)) % ws
             children = node.children
-            cnt_flag = False   # 为了测试
             for child in children:
-                if child.d1 <= z*ds and child.d2 > z*ds and child.h1 <= y*hs and child.h2 > y*hs and child.w1 <= x*ws and child.w2 > x*ws:
-                    self.predict_dfs(child, index, batch_size, input)
-                    if cnt_flag == False:
-                        cnt_flag = True
-                    else:
-                        sys.exit("应该只有一个")
+                self.predict_dfs(child, index, batch_size, input)
         else:
-            node.predict_data[index:index+batch_size] = node.net(input).detach().cpu().numpy()
+            node.predict_data[index:index + batch_size] = node.net(input).detach().cpu().numpy()
 
     def merge(self):
         for node in self.leaf_node_list:
@@ -346,43 +327,19 @@ class OctTreeMLP(nn.Module):
         loss = loss.mean()
         return loss
 
-    def cal_loss(self, idxs, coords):
+    def cal_loss(self, idxs, coords):    # 因为输入的只是一个叶子块大小范围内坐标，故输入一次坐标但是是算了所有叶子节点的坐标的loss
         self.loss = 0
         self.forward_dfs(self.base_node, idxs, coords)
         self.loss = self.loss.mean()
         return self.loss
 
     def forward_dfs(self, node, idxs, input):
-        # # TODO 后续进一步优化，如果每一次的迭代只在一个叶子节点里面取会快很多
-        # coords_3d = [(idx // (self.data.shape[1] * self.data.hape[2]),
-        #               (idx % (self.data.shape[1] * self.data.shape[2])) // self.data.shape[2],
-        #               idx % self.data.shape[2]) for idx in input]
-
-        # for point in coords_3d:
-        #     d_floor = point[0] - point[0] % (self.data.shape[0]//(2**max_level))
-        #     h_floor = point[1] - point[1] % (self.data.shape[1]//(2**max_level))
-        #     w_floor = point[2] - point[2] % (self.data.shape[2]//(2**max_level))
-
-        #     try:
-        #         leaf_node = self.node_hash[(d_floor, h_floor, w_floor)]
-        #     except KeyError:
-        #         print(f"Error: 坐标的下边界 '{(d_floor, h_floor, w_floor)}' 找不到对应的node")
-
-        #     point_tensor = torch.tensor(point)
-        #     predicts.append(leaf_node.net(point_tensor))
-        #     labels.append(leaf_node.data[point[0], point[1], point[2]])
-
-        # predicts_tensor = torch.stack(predicts)
-        # labels_tensor = torch.stack(labels)
-
         if len(node.children) > 0:
             # input = node.net(input)
-
             children = node.children
             for child in children:
                 self.forward_dfs(child, idxs, input)
         else:
             predict = node.net(input)
-            # label = node.data[idxs:idxs+self.sampler.batch_size, :].to(self.device)
             label = node.data[idxs, :].to(self.device)   # 获取标签，即真实数据
             self.loss = self.loss + self.l2loss(label, predict)

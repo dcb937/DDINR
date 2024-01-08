@@ -37,7 +37,7 @@ def create_lr_scheduler(optimizer, lr_scheduler_opt):
 # 这里的shape就是数据的长宽高，eg: 512*512*512
 
 
-def create_flattened_coords(coords_shape: Tuple) -> torch.Tensor:
+def create_flattened_coords(coords_shape: Tuple) -> torch.Tensor:    # coords的大小是最后叶节点小块的大小
     minimum = -1
     maximum = 1
     coords = torch.stack(torch.meshgrid(
@@ -51,16 +51,16 @@ def create_flattened_coords(coords_shape: Tuple) -> torch.Tensor:
 
 class PointSampler:
     def __init__(self, data: torch.Tensor, max_level: int, batch_size: int, epochs: int, device: str = 'cpu') -> None:
-        self.batch_size = int(batch_size/8**max_level)   # max_level 从0开始，2层就是1
+        self.batch_size = int(batch_size/ 8**max_level)   # max_level 从0开始，2层就是1
         assert self.batch_size > 512 and self.batch_size < 2097152, "Batch size error"
         # self.batch_size = int(batch_size)
         self.epochs = epochs
         self.device = device
         assert data.shape[0] % 2**max_level == 0 and data.shape[1] % 2**max_level == 0 and data.shape[
             1] % 2**max_level == 0, f"{data.shape} can't be devided by 2^{max_level}"
-        self.shape = (data.shape[0]//2**max_level, data.shape[1]//2**max_level, data.shape[2]//2**max_level)
+        self.shape = (data.shape[0]//2**max_level, data.shape[1]//2**max_level, data.shape[2]//2**max_level)        # 划分到最后的叶节点的长宽高
         self.coords = create_flattened_coords(self.shape).to(device)
-        self.pop_size = self.shape[0]*self.shape[1]*self.shape[2]
+        self.pop_size = self.shape[0]*self.shape[1]*self.shape[2]    # 所谓pop_size指的是划分到最后的叶节点的大小
         self.evaled_epochs = []
 
     def judge_eval(self, eval_epoch):
@@ -81,10 +81,10 @@ class PointSampler:
         self.epochs_count = 0
         return self
 
-    def __next__(self):
+    def __next__(self):              # 每次抽样提供的是划分到最后块的坐标
         if self.index < self.pop_size:
             # sampled_idxs = self.index
-            sampled_idxs = torch.randint(0, self.pop_size, (self.batch_size,))  # 随机取self.batch_size个点，但注意，这里的self.batch_size可不是yaml文件里面的batchsize
+            sampled_idxs = torch.randint(0, self.pop_size, (self.batch_size,))  # 随机取self.batch_size个点，但注意，这里的self.batch_size可不是yaml文件里面的batchsize，而是self.batch_size = int(batch_size/ 8**max_level)
             sampled_coords = self.coords[sampled_idxs, :]
             sampled_coords = sampled_coords.to(self.device)
             self.index += self.batch_size
