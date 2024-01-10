@@ -3,7 +3,7 @@ Reproduc:
   benchmark: false
   deterministic: true
 CompressFramwork:
-  Path: data/skull_256x256x256_uint8.tif
+  Path: data/tetBox_0.vtk
   Ratio: 64
   Train:
     batch_size: 524288 # 262144
@@ -16,7 +16,7 @@ CompressFramwork:
       name: MultiStepLR
       milestones: [20000,50000]
       gamma: 0.2
-    weight: [2001,65535,0.01]
+    weight: [-10,0,0.1]
   Eval:
     batch_size: 524288  # 262144
     epochs: 10

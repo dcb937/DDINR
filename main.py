@@ -12,6 +12,7 @@ from utils.OctTree import OctTreeMLP
 from utils.tool import read_img, save_img, get_folder_size
 from utils.metrics import eval_performance
 from utils.ModelSave import save_tree_models
+from utils.ReadVTK import show3D
 
 
 class CompressFramework:

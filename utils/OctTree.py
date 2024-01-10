@@ -207,7 +207,6 @@ class OctTreeMLP(nn.Module):
         if node.level == self.max_level:
             print('zzzzzzzzzzzzz')
             # TODO 设计好 level数、参数个数、MLP的层数的权衡
-            # TODO 这样的话，解压缩得是并行的才快？
             input, output = self.opt.Network.input, self.opt.Network.output
             output_act = False
             # 根据input和output的大小计算这个节点的MLP的hiden（隐藏层）的层数和output的大小

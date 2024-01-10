@@ -2,21 +2,30 @@ import cv2
 import tifffile
 import os
 import numpy as np
+from utils.ReadVTK import readVTK, show3D
 
 def get_type_max(data):
     dtype = data.dtype.name
     if dtype == 'uint8':
-        max = 255
+        # max = 255
+        max = np.max(data)
     elif dtype == 'uint12':
-        max = 4098
+        # max = 4098
+        max = np.max(data)
     elif dtype == 'uint16':
-        max = 65535
+        # max = 65535
+        max = np.max(data)
     elif dtype == 'float32':
+        # max = 65535
         max = np.max(data)            # 修改的，不确定
+        # max = 1
     elif dtype == 'float64':
+        # max = 65535
         max = np.max(data)            # 修改的，不确定
+        # max = 1
     elif dtype == 'int16':
-        max = 65535   
+        # max = 65535
+        max = np.max(data)
     else:
         raise NotImplementedError
     return max
@@ -34,6 +43,8 @@ def read_img(path):
         if len(img.shape) == 2:
             img = img[...,None]
         assert len(img.shape)==3
+    elif postfix in ['.vtk']:
+        img = readVTK(path)
     else:
         raise NotImplemented
     return img  
@@ -43,7 +54,9 @@ def save_img(path, img):
     if postfix in ['.tif','.tiff']:
         tifffile.imsave(path, img)
     elif postfix in ['.png','.jpg']:
-        cv2.imwrite(path, img)  
+        cv2.imwrite(path, img)
+    elif postfix in ['.vtk']:
+        show3D(img, 0, path)
     else:
         raise NotImplemented  
 

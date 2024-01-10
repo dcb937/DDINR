@@ -1,19 +1,23 @@
 import vtk
 import numpy as np
 import sys
+import os
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 
-file_path = 'tetBox_0.vtk'
+
 PointOrCell = 'point'
 attribute_name = 'nuTilda'
-Size = 128  # eg:256   -> 256*256*256
+Size = 256  # eg:256   -> 256*256*256
 
-def readVTK():
+def readVTK(file_path):
     print('read VTK file')
-    print(f'Seted option is: {PointOrCell}.{attribute_name}')
+    print(f'Set option: {PointOrCell}.{attribute_name}')
+    print(f'Set size: {Size}*{Size}*{Size}')
     # 创建并设置 VTK 读取器
     reader = vtk.vtkUnstructuredGridReader()
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"The file {file_path} does not exist.")
     reader.SetFileName(file_path)
     reader.Update()
 
@@ -48,8 +52,9 @@ def readVTK():
     print(f'min_point: {min_point}')
     print(f'max_point: {max_point}')
 
-    # 创建一个 Size * Size * Sizex * channel
-    coord_space = np.zeros((Size, Size, Size, channel))
+    # 初始化一个 Size * Size * Sizex * channel
+    # coord_space = np.zeros((Size, Size, Size, channel))
+    coord_space = np.full((Size, Size, Size, channel), -0.01, dtype=np.float64)
     count_space = np.zeros((Size, Size, Size))
 
     # 遍历每个点
@@ -63,6 +68,9 @@ def readVTK():
 
         # 更新
         x, y, z = transformed_point
+        if count_space[x, y, z] == 0:
+            # 第一次访问这个点，将值设置为0
+            coord_space[x, y, z, :] = 0
         count_space[x, y, z] += 1
         for j in range(channel):
             coord_space[x, y, z, j] += attribute.GetTuple(i)[j]
@@ -77,18 +85,24 @@ def readVTK():
 
     print(coord_space.shape)
     # show3D(coord_space)
+    return coord_space
 
-def show3D(coord_space, channel = 0):
+def show3D(coord_space, channel = 0, path=os.getcwd()):
     # 创建一个 3D 图形
-    fig = plt.figure()
+    fig = plt.figure(figsize=(10, 8))
     ax = fig.add_subplot(111, projection='3d')
 
     # 准备数据
     x, y, z = np.indices(coord_space.shape[:3])
-    c = coord_space[:, :, :, channel].flatten()  # 获取第四维度的值并扁平化
+    c = coord_space[:, :, :, channel]  # 获取第四维度的值并扁平化
+    x, y, z, c = x.flatten(), y.flatten(), z.flatten(), c.flatten()
+    # 创建掩码，忽略值为 -1.0 的点
+    mask = c > -0.01
+    # 应用掩码
+    x, y, z, c = x[mask], y[mask], z[mask], c[mask]
 
     # 绘制散点图
-    sc = ax.scatter(x.flatten(), y.flatten(), z.flatten(), c=c, s = 0.01, cmap='viridis')  # 调整s来调整图像中节点的大小
+    sc = ax.scatter(x.flatten(), y.flatten(), z.flatten(), c=c, s = 0.1, cmap='viridis')  # 调整s来调整图像中节点的大小
 
     # 添加颜色条
     plt.colorbar(sc)
@@ -99,4 +113,13 @@ def show3D(coord_space, channel = 0):
     ax.set_zlabel('Z axis')
 
     # 显示图形
-    plt.show()
+    # plt.show()
+    print(f'saved in {path}')
+    filename = os.path.join(path, "fig.png")
+    plt.savefig(filename)
+    plt.close(fig)
+
+
+if __name__ == "__main__":
+    file_path = 'D:\MyDesktop\hp\Desktop\DDINR\data\\tetBox_0.vtk'
+    readVTK(file_path)

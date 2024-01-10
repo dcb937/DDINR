@@ -28,7 +28,8 @@ def cal_iou_acc_pre(data_gt:np.ndarray,data_hat:np.ndarray,thres:float=1):
     pre = 1.0*tp/(tp+fp)
     return iou, acc, pre
 
-def cal_psnr(data_gt:np.ndarray, data_hat:np.ndarray, data_range):  # data_gt, data_hat 都是原始数据，未经过归一化
+# data_gt, data_hat 都是原始数据，未经过归一化
+def cal_psnr(data_gt:np.ndarray, data_hat:np.ndarray, data_range):
     data_gt = np.copy(data_gt)
     data_hat = np.copy(data_hat)
     mse = np.mean(np.power(data_gt/data_range-data_hat/data_range,2))
@@ -40,6 +41,7 @@ def eval_performance(orig_data, decompressed_data):
     orig_data = orig_data.astype(np.float32)
     decompressed_data = decompressed_data.astype(np.float32)
     # accuracy
+    # 原作者代码算acc的经常会报warning，后续若有需要可以考虑修改一下
     acc200 = cal_iou_acc_pre(orig_data, decompressed_data, thres=200)[1]
     acc500 = cal_iou_acc_pre(orig_data, decompressed_data, thres=500)[1]
     # psnr
