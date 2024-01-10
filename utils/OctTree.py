@@ -153,6 +153,7 @@ class OctTreeMLP(nn.Module):
         self.get_hyper()
         self.net_structure = {}
         self.init_network_dfs(self.base_node)                                   # 从 base node 往下开始dfs遍历初始化其他节点  层数从0开始
+        # sys.exit()
         for key in self.net_structure.keys():
             print('*'*12+key+'*'*12)
             print(self.net_structure[key])
@@ -204,6 +205,7 @@ class OctTreeMLP(nn.Module):
                 # node.param = node.parent.param / 8
         # 根据新的设计，只有最后一层设置MLP
         if node.level == self.max_level:
+            print('zzzzzzzzzzzzz')
             # TODO 设计好 level数、参数个数、MLP的层数的权衡
             # TODO 这样的话，解压缩得是并行的才快？
             input, output = self.opt.Network.input, self.opt.Network.output
@@ -218,7 +220,7 @@ class OctTreeMLP(nn.Module):
             self.net_structure[f'Level{node.level}'][f'{node.di}-{node.hi}-{node.wi}'] = '{}->{}->{}({}&{}&{})'.format(
                 hyper['input'], hyper['hidden'], hyper['output'], hyper['layer'], hyper['act'], hyper['output_act'])
 
-        # print('At level {}, number of param is {}'.format(node.level, node.param))
+        print('At level {}, number of param of this node is {}'.format(node.level, node.param))
 
         children = node.children
         for child in children:
@@ -330,7 +332,7 @@ class OctTreeMLP(nn.Module):
     def cal_loss(self, idxs, coords):    # 因为输入的只是一个叶子块大小范围内坐标，故输入一次坐标但是是算了所有叶子节点的坐标的loss
         self.loss = 0
         self.forward_dfs(self.base_node, idxs, coords)
-        self.loss = self.loss.mean()
+        self.loss = self.loss.mean()       # 取平均值
         return self.loss
 
     def forward_dfs(self, node, idxs, input):
@@ -342,4 +344,4 @@ class OctTreeMLP(nn.Module):
         else:
             predict = node.net(input)
             label = node.data[idxs, :].to(self.device)   # 获取标签，即真实数据
-            self.loss = self.loss + self.l2loss(label, predict)
+            self.loss = self.loss + self.l2loss(label, predict)     ## 这会导致，随着树的层数的增大，loss值成指数增大

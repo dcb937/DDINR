@@ -1,6 +1,7 @@
 import cv2
 import tifffile
 import os
+import numpy as np
 
 def get_type_max(data):
     dtype = data.dtype.name
@@ -11,9 +12,9 @@ def get_type_max(data):
     elif dtype == 'uint16':
         max = 65535
     elif dtype == 'float32':
-        max = 65535
+        max = np.max(data)            # 修改的，不确定
     elif dtype == 'float64':
-        max = 65535
+        max = np.max(data)            # 修改的，不确定
     elif dtype == 'int16':
         max = 65535   
     else:
@@ -27,7 +28,7 @@ def read_img(path):
         img = tifffile.imread(path)
         if len(img.shape) == 3:
             img = img[...,None]
-        assert len(img.shape)==4
+        assert len(img.shape)==4                  # 即默认通道数为1 即灰度图像
     elif postfix in ['.png','.jpg']:
         img = cv2.imread(path,-1)
         if len(img.shape) == 2:

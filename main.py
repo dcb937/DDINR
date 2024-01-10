@@ -51,6 +51,7 @@ class CompressFramework:
                 # predict 相当于解压缩，遍历输入数据的每一个点得出预测的值 eg: 512*512*512
                 predict_data = tree_mlp.predict(device=self.compress_opt.Eval.device, batch_size=self.compress_opt.Eval.batch_size)
                 metrics['decode_time'] = time.time()-time_eval_start
+                # eval performance的时候的origin_data, predict_data都是没有经过归一化的原始数据，predict_data求的时候是用归一化的去求，但最后转回来了
                 psnr, ssim, acc200, acc500 = eval_performance(self.origin_data, predict_data)
                 if psnr > metrics['psnr_best']:
                     metrics['psnr_best'] = psnr

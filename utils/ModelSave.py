@@ -47,7 +47,7 @@ def load_model(model_path, hyper):
 def save_tree_models(tree_mlp:OctTreeMLP, model_dir:str):
     if not os.path.exists(model_dir):
         os.makedirs(model_dir)
-    for node in tree_mlp.node_list:
+    for node in tree_mlp.leaf_node_list:    # 修改成叶子节点列表
         model = node.net
         model_path = os.path.join(model_dir, f'{node.level}-{node.di}-{node.hi}-{node.wi}')
         save_model(model=model, model_path=model_path)

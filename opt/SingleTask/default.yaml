@@ -3,11 +3,11 @@ Reproduc:
   benchmark: false
   deterministic: true
 CompressFramwork:
-  Path: data/test.tif
+  Path: data/skull_256x256x256_uint8.tif
   Ratio: 64
   Train:
-    batch_size: 262144
-    epochs: 10000
+    batch_size: 524288 # 262144
+    epochs: 500
     device: cuda
     optimizer: 
       type: Adamax
@@ -18,8 +18,8 @@ CompressFramwork:
       gamma: 0.2
     weight: [2001,65535,0.01]
   Eval:
-    batch_size: 262144
-    epochs: 1000
+    batch_size: 524288  # 262144
+    epochs: 10
     device: cuda
   Preprocess:
     normal_min: 0
@@ -27,7 +27,7 @@ CompressFramwork:
   Network:
     input: 3
     output: 1
-    level_info: [[1.0, 2, Sine, euqal], [0.8, 2, Sine, aoi]]  # [parameter ratio, layer, act, allocate]
+    level_info: [[1.0, 2, Sine, euqal], [0.8, 5, Sine, var], [0.8, 5, Sine, var]]  # [parameter ratio, layer, act, allocate]
     w0: 30
 
 Log: 

@@ -28,7 +28,7 @@ def cal_iou_acc_pre(data_gt:np.ndarray,data_hat:np.ndarray,thres:float=1):
     pre = 1.0*tp/(tp+fp)
     return iou, acc, pre
 
-def cal_psnr(data_gt:np.ndarray, data_hat:np.ndarray, data_range):
+def cal_psnr(data_gt:np.ndarray, data_hat:np.ndarray, data_range):  # data_gt, data_hat 都是原始数据，未经过归一化
     data_gt = np.copy(data_gt)
     data_hat = np.copy(data_hat)
     mse = np.mean(np.power(data_gt/data_range-data_hat/data_range,2))
