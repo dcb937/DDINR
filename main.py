@@ -52,8 +52,13 @@ class CompressFramework:
                 # predict 相当于解压缩，遍历输入数据的每一个点得出预测的值 eg: 512*512*512
                 predict_data = tree_mlp.predict(device=self.compress_opt.Eval.device, batch_size=self.compress_opt.Eval.batch_size)
                 metrics['decode_time'] = time.time()-time_eval_start
-                # eval performance的时候的origin_data, predict_data都是没有经过归一化的原始数据，predict_data求的时候是用归一化的去求，但最后转回来了
-                psnr, ssim, acc200, acc500 = eval_performance(self.origin_data, predict_data)
+
+                # 对于vtk类型的输入，只计算ground truth里面大于0的点
+                if os.path.splitext(self.data_path)[-1] != '.vtk':
+                    # eval performance的时候的origin_data, predict_data都是没有经过归一化的原始数据，predict_data求的时候是用归一化的去求，但最后转回来了
+                    psnr, ssim, acc200, acc500 = eval_performance(self.origin_data, predict_data)
+                else:
+                    psnr, ssim, acc200, acc500 = eval_performance(self.origin_data, predict_data, 1)
                 if psnr > metrics['psnr_best']:
                     metrics['psnr_best'] = psnr
                     metrics['psnr_epoch'] = sampler.epochs_count
@@ -74,8 +79,13 @@ class CompressFramework:
                 time_eval += (time.time() - time_eval_start)
         model_dir = os.path.join(self.Log.compressed_dir, 'models')
         save_tree_models(tree_mlp=tree_mlp, model_dir=model_dir)
-        predict_path = os.path.join(self.Log.decompressed_dir, 'decompressed.tif')
-        save_img(predict_path, predict_data)
+
+        if os.path.splitext(self.data_path)[-1] != '.vtk':
+            predict_path = os.path.join(self.Log.decompressed_dir, 'decompressed.tif')
+            save_img(predict_path, predict_data)
+        else:
+            show3D(predict_data, 0, self.Log.decompressed_dir)
+
         ratio_actual = os.path.getsize(self.data_path)/get_folder_size(model_dir)
         self.Log.log_metrics({'ratio_actual': ratio_actual}, 0)
         metrics['ratio_set'], metrics['ratio_theory'], metrics['ratio_actual'] = self.compress_opt.Ratio, tree_mlp.ratio, ratio_actual

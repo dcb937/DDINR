@@ -54,7 +54,7 @@ def readVTK(file_path):
 
     # 初始化一个 Size * Size * Sizex * channel
     # coord_space = np.zeros((Size, Size, Size, channel))
-    coord_space = np.full((Size, Size, Size, channel), -0.01, dtype=np.float64)
+    coord_space = np.full((Size, Size, Size, channel), -1.0, dtype=np.float64)
     count_space = np.zeros((Size, Size, Size))
 
     # 遍历每个点
@@ -66,7 +66,6 @@ def readVTK(file_path):
         normalized_point = (np.array(point) - min_point) / (max_point - min_point)
         transformed_point = np.round(normalized_point * (Size - 1)).astype(int)
 
-        # 更新
         x, y, z = transformed_point
         if count_space[x, y, z] == 0:
             # 第一次访问这个点，将值设置为0
@@ -84,7 +83,7 @@ def readVTK(file_path):
 
 
     print(coord_space.shape)
-    # show3D(coord_space)
+    show3D(coord_space)
     return coord_space
 
 def show3D(coord_space, channel = 0, path=os.getcwd()):
@@ -96,8 +95,8 @@ def show3D(coord_space, channel = 0, path=os.getcwd()):
     x, y, z = np.indices(coord_space.shape[:3])
     c = coord_space[:, :, :, channel]  # 获取第四维度的值并扁平化
     x, y, z, c = x.flatten(), y.flatten(), z.flatten(), c.flatten()
-    # 创建掩码，忽略值为 -1.0 的点
-    mask = c > -0.01
+    # 创建掩码，忽略值小于 0 的点
+    mask = c >= 0.0
     # 应用掩码
     x, y, z, c = x[mask], y[mask], z[mask], c[mask]
 

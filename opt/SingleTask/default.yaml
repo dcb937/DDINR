@@ -7,7 +7,7 @@ CompressFramwork:
   Ratio: 64
   Train:
     batch_size: 524288 # 262144
-    epochs: 500
+    epochs: 300
     device: cuda
     optimizer: 
       type: Adamax
@@ -16,7 +16,7 @@ CompressFramwork:
       name: MultiStepLR
       milestones: [20000,50000]
       gamma: 0.2
-    weight: [-10,0,0.1]
+    weight: [-10,0,0.00001]
   Eval:
     batch_size: 524288  # 262144
     epochs: 10
@@ -27,7 +27,7 @@ CompressFramwork:
   Network:
     input: 3
     output: 1
-    level_info: [[1.0, 2, Sine, euqal], [0.8, 5, Sine, var], [0.8, 5, Sine, var]]  # [parameter ratio, layer, act, allocate]
+    level_info: [[1.0, 2, Sine, euqal], [0.8, 5, Sine, var]]  # [parameter ratio, layer, act, allocate]
     w0: 30
 
 Log: 

@@ -323,10 +323,30 @@ class OctTreeMLP(nn.Module):
         loss = F.mse_loss(data_gt, data_hat, reduction='none')
         weight = torch.ones_like(data_gt)
         l, h, scale = self.loss_weight
-        weight[(data_gt >= l)*(data_gt <= h)] = scale  # 对于 data_gt 中的值位于 [l, h] 区间内的元素，它们在 weight 张量中对应的权重被设置为 scale ， 根据yaml文件，权重更小，即认为不重要
+        weight[(data_gt >= 0)] = 10  # 对于 data_gt 中的值位于 [l, h) 区间内的元素，它们在 weight 张量中对应的权重被设置为 scale ， 根据yaml文件，权重更小，即认为不重要
         loss = loss*weight
         loss = loss.mean()
         return loss
+
+    # def l2loss(self, data_gt, data_hat):
+    #     loss = F.mse_loss(data_gt, data_hat, reduction='none')
+    #
+    #     # 创建一个掩码，只考虑第四维中大于等于 0的点
+    #     mask = data_gt.squeeze(-1) >= 0  # 假设C（通道数）= 1，去除最后一个维度
+    #
+    #     # 应用掩码，只考虑大于0的点
+    #     # 由于mask是三维的，我们需要将loss调整为三维以匹配mask
+    #     loss = loss.squeeze(-1)
+    #     loss = loss[mask]
+    #
+    #     # 如果没有任何大于0的点，避免除以0的错误
+    #     if loss.numel() == 0:
+    #         return torch.tensor(0.0).to(loss.device)
+    #
+    #     # 计算平均损失
+    #     loss = loss.mean()
+    #
+    #     return loss
 
     def cal_loss(self, idxs, coords):    # 因为输入的只是一个叶子块大小范围内坐标，故输入一次坐标但是是算了所有叶子节点的坐标的loss
         self.loss = 0

@@ -55,8 +55,6 @@ def save_img(path, img):
         tifffile.imsave(path, img)
     elif postfix in ['.png','.jpg']:
         cv2.imwrite(path, img)
-    elif postfix in ['.vtk']:
-        show3D(img, 0, path)
     else:
         raise NotImplemented  
 

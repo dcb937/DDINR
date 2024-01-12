@@ -36,7 +36,16 @@ def cal_psnr(data_gt:np.ndarray, data_hat:np.ndarray, data_range):
     psnr = -10*np.log10(mse)
     return psnr
 
-def eval_performance(orig_data, decompressed_data):
+def cal_psnr_gt_ge0(data_gt:np.ndarray, data_hat:np.ndarray, data_range):
+    data_gt = np.copy(data_gt)
+    data_hat = np.copy(data_hat)
+    mask = data_gt >= 0
+    # 只对data_gt中大于0的点计算MSE
+    mse = np.mean(np.power(data_gt[mask] / data_range - data_hat[mask] / data_range, 2))
+    psnr = -10*np.log10(mse)
+    return psnr
+
+def eval_performance(orig_data, decompressed_data, isVtk = 0):
     max_range = get_type_max(orig_data)
     orig_data = orig_data.astype(np.float32)
     decompressed_data = decompressed_data.astype(np.float32)
@@ -45,7 +54,11 @@ def eval_performance(orig_data, decompressed_data):
     acc200 = cal_iou_acc_pre(orig_data, decompressed_data, thres=200)[1]
     acc500 = cal_iou_acc_pre(orig_data, decompressed_data, thres=500)[1]
     # psnr
-    psnr_value = cal_psnr(orig_data, decompressed_data, max_range)
+    if isVtk == 1:
+        print('\npsnr count type: VTK')
+        psnr_value = cal_psnr_gt_ge0(orig_data, decompressed_data, max_range)
+    else:
+        psnr_value = cal_psnr(orig_data, decompressed_data, max_range)
     # ssim
     orig_data = torch.from_numpy(orig_data)
     decompressed_data = torch.from_numpy(decompressed_data)
