@@ -7,62 +7,63 @@ import sys
 import math
 from tqdm import tqdm
 import torch.nn.functional as F
-from utils.tool import read_img, save_img
+from utils.tool import read_vtk, save_img
 from utils.Sampler import create_optim, create_flattened_coords, PointSampler, create_lr_scheduler
 from utils.Network import MLP
+from utils.VTK import get_vtk_size, sort_in_3D_axies
 
 
 class Node():
-    def __init__(self, parent, level, origin_data, di, hi, wi):
+    def __init__(self, parent, level, points_array, points_value_array, di, hi, wi, device):
         self.level = level
         self.parent = parent
-        self.origin_data = origin_data
+        self.points_array, self.points_value_array = [], []
+        self.device = device
+
+        # 计算每列的最大值
+        max_values, _ = torch.max(points_array, dim=0)
+        max_values = max_values + 0.00001
+        # 计算每列的最小值
+        min_values, _ = torch.min(points_array, dim=0)
+        min_values = min_values
+
         self.di, self.hi, self.wi = di, hi, wi
         # 步长step，每个最终划分的块的大小
-        self.ds, self.hs, self.ws = origin_data.shape[0]//(2**level), origin_data.shape[1]//(2**level), origin_data.shape[2]//(2**level)
+        self.ds, self.hs, self.ws = (max_values[0]-min_values[0])/(2**level), (max_values[1]-min_values[1])/(2**level), (max_values[2]-min_values[2])/(2**level)
         # 区间的左边界和右边界  1和2
-        self.d1, self.d2 = self.di*self.ds, (self.di+1)*self.ds
-        self.h1, self.h2 = self.hi*self.hs, (self.hi+1)*self.hs
-        self.w1, self.w2 = self.wi*self.ws, (self.wi+1)*self.ws
+        self.d1, self.d2 = min_values[0] + self.di*self.ds, min_values[0] + (self.di+1)*self.ds
+        self.h1, self.h2 = min_values[1] + self.hi*self.hs, min_values[1] + (self.hi+1)*self.hs
+        self.w1, self.w2 = min_values[2] + self.wi*self.ws, min_values[2] + (self.wi+1)*self.ws
         # 属于自己的那一块
         # TODO 可以考虑ghost cell，如果后续出现缝隙的话
-        self.data = origin_data[self.d1:self.d2, self.h1:self.h2, self.w1:self.w2]
-        self.data = rearrange(self.data, 'd h w n-> (d h w) n')  # 扁平化
+        assert points_array.shape[0] == points_value_array.shape[0]
+        for point, point_value in zip(points_array, points_value_array):
+            if point[0] >= self.d1 and point[0] < self.d2 and point[1] >= self.h1 and point[1] < self.h2 and point[2] >= self.w1 and point[2] < self.w2:
+                self.points_array.append(point)
+                self.points_value_array.append(point_value)
+        self.points_array, self.points_value_array = torch.stack(self.points_array, dim=0), torch.stack(self.points_value_array, dim=0)
+
+        self.points_array.to(device)
+        self.points_value_array.to(device)
         self.children = []
         self.param = 0     # 新加的
-        self.predict_data = np.zeros_like(self.data)
-        # TODO 后续可以考虑使用，虽然不再采用原作者的下层继承上层，但可以延续原作者的同一层参数分配的思路
-        self.aoi = float((self.data > 0).sum())
-        self.var = float(((self.data-self.data.mean())**2).mean())
+        # self.aoi = float((self.data > 0).sum())
+        # self.var = float(((self.data-self.data.mean())**2).mean())
+        self.num = self.points_array.shape[0]
 
     def get_children(self):
+        if self.num == 0:
+            print('this section has no point, do not continue to dfs')
+            return []
         for d in range(2):
             for h in range(2):
                 for w in range(2):
-                    child = Node(parent=self, level=self.level+1, origin_data=self.origin_data, di=2*self.di+d, hi=2*self.hi+h, wi=2*self.wi+w)
+                    child = Node(parent=self, level=self.level+1, origin_data=self.origin_data, di=2*self.di+d, hi=2*self.hi+h, wi=2*self.wi+w, device=self.device)
                     self.children.append(child)
         return self.children
 
     def init_network(self, input, output, hidden, layer, act, output_act, w0=30):
         self.net = MLP(input, output, hidden, layer, act, output_act, w0)
-
-
-def normalize_data(data: np.ndarray, scale_min, scale_max):
-    dtype = data.dtype  # 存储了原始数据的数据类型
-    data = data.astype(np.float32)
-    data_min, data_max = data.min(), data.max()
-    data = (data - data_min)/(data_max - data_min)
-    data = data*(scale_max - scale_min) + scale_min
-    data = torch.tensor(data, dtype=torch.float)
-    side_info = {'scale_min': scale_min, 'scale_max': scale_max, 'data_min': data_min, 'data_max': data_max, 'dtype': dtype}
-    return data, side_info
-
-
-def invnormalize_data(data: np.ndarray, scale_min, scale_max, data_min, data_max, dtype):
-    data = (data - scale_min)/(scale_max - scale_min)
-    data = data*(data_max - data_min) + data_min
-    data = data.astype(dtype=dtype)
-    return data
 
 
 def cal_hidden_output(param, layer, input, output: int = None):
@@ -88,12 +89,13 @@ class OctTreeMLP(nn.Module):
     def __init__(self, opt) -> None:
         super().__init__()
         self.opt = opt
-        self.node_hash = {}   # 新增
         self.max_level = len(opt.Network.level_info)-1
         self.data_path = opt.Path
         self.device = opt.Train.device
-        self.data, self.side_info = normalize_data(read_img(self.data_path), opt.Preprocess.normal_min, opt.Preprocess.normal_max)
+        self.points_array, self.points_value_array = read_vtk(self.data_path)
+        self.points_array, self.points_value_array = torch.Tensor(self.points_array), torch.Tensor(self.points_value_array)
         self.loss_weight = opt.Train.weight
+        self.leaf_nodes_num = 0
 
         self.init_tree()
         self.init_network()
@@ -107,7 +109,7 @@ class OctTreeMLP(nn.Module):
     """init tree structure"""
 
     def init_tree(self):
-        self.base_node = Node(parent=None, level=0, origin_data=self.data, di=0, hi=0, wi=0)
+        self.base_node = Node(parent=None, level=0, points_array=self.points_array, points_value_array=self.points_value_array, di=0, hi=0, wi=0, device=self.device)
         self.init_tree_dfs(self.base_node)
 
     def init_tree_dfs(self, node):  # 用于深度优先搜索（DFS）方式创建八叉树的所有节点。每个节点代表数据的一个子区域。
@@ -121,7 +123,7 @@ class OctTreeMLP(nn.Module):
     def get_hyper(self):
         # Parameter allocation scheme: (1) ratio between levels (2) parameter allocation in the same level
         ratio = self.opt.Ratio
-        origin_bytes = os.path.getsize(self.data_path)
+        origin_bytes = get_vtk_size(self.data_path)
         ideal_bytes = int(origin_bytes/ratio)
         ideal_params = int(ideal_bytes/4)
         self.ideal_params = ideal_params   # 新加的
@@ -134,20 +136,6 @@ class OctTreeMLP(nn.Module):
         self.level_act = [info[2] for info in level_info]                       # 激活函数  都采用的是sine
         self.level_allocate = [info[3] for info in level_info]                  # 层内allocate方式有equal均分等方式
 
-    """
-        以配置文件中的三层举例：[[1.0, 2, Sine, euqal], [1.0, 2, Sine, equal], [1.5, 3, Sine, equal]]
-        树每层level的每个节点的参数的比例为：    1 : 1 : 1.5
-        树每层level的参数的比例为：            8 ： 64 ：768
-        以自带的数据举例：0.25MB的数据压缩比为64时的参数个数为928
-        这就意味着第一层仅仅能分配到10个左右的参数
-        这也就解释了为什么在三层level的树高的解压缩的图片会出现非常非常明显的`分块`的效果
-        因为根据树结构的设计，第一层的10个参数会作用于后面的两层level
-        因为第一层的10个参数对后面两层施加了较大的影响，后面两层对这种影响无法`扭转`
-        // 疑问：MLP的前面的层的影响会比较大吗？
-
-        的确，作者文章中提到的层间和层内参数分配的思路可以解决这个问题，但如何或者是通过何种指标来实现这种分配是一个很大的困难
-        作者只是在文章中体现了这种思想，在代码层面没有任何体现，
-    """
 
     def init_network(self):
         self.get_hyper()
@@ -161,33 +149,6 @@ class OctTreeMLP(nn.Module):
     def init_network_dfs(self, node):
         layer = self.level_layer[node.level]                                                    # layer表示这一层的MLP有几层
         act = self.level_act[node.level]
-        # if self.max_level == 0:                                                                 # 如果只有一层，那么这一层的输入输出的个数就是配置文件里面设置的
-        #     input, output, output_act = self.opt.Network.input, self.opt.Network.output, False  # self.opt.Network.input, self.opt.Network.output 在yaml配置文件有，默认分别为3 1
-        #     # output_act的true, false是指这一层的输出是否应用激活函数，显然，如果这一层的output是最后的输出则不需要，否则需要
-        #     param = self.level_param[node.level]
-        # elif node.level == 0:                                                                   # output设为none 意味着输出层的维度并未预先固定，而是根据某些条件或计算来动态确定。
-        #     input, output, output_act = self.opt.Network.input, None, True
-        #     param = self.level_param[node.level]
-        # elif node.level < self.max_level:
-        #     input, output, output_act = node.parent.net.hyper['output'], None, True
-        #     if self.level_allocate[node.level] == 'equal':
-        #         param = self.level_param[node.level]/8**node.level
-        #     elif self.level_allocate[node.level] == 'aoi':
-        #         param = self.level_param[node.level]*node.aoi/self.base_node.aoi
-        #     elif self.level_allocate[node.level] == 'var':
-        #         param = self.level_param[node.level]*node.var/sum([child.var for child in node.parent.children])
-        #     else:
-        #         param = self.level_param[node.level]/8**node.level
-        # else:
-        #     input, output, output_act = node.parent.net.hyper['output'], self.opt.Network.output, False
-        #     if self.level_allocate[node.level] == 'equal':
-        #         param = self.level_param[node.level]/8**node.level
-        #     elif self.level_allocate[node.level] == 'aoi':
-        #         param = self.level_param[node.level]*node.aoi/self.base_node.aoi  # TODO TINC代码这里是不是写错了？？后续可以测试一下
-        #     elif self.level_allocate[node.level] == 'var':
-        #         param = self.level_param[node.level]*node.var/sum([child.var for child in node.parent.children])
-        #     else:
-        #         param = self.level_param[node.level]/8**node.level
 
         if self.max_level == 0:                                                                 # 如果只有一层，那么这一层的输入输出的个数就是配置文件里面设置的
             node.param = self.ideal_params
@@ -200,14 +161,15 @@ class OctTreeMLP(nn.Module):
                 node.param = node.parent.param * node.aoi / sum([child.aoi for child in node.parent.children])
             elif self.level_allocate[node.level] == 'var':
                 node.param = node.parent.param * node.var / sum([child.var for child in node.parent.children])
+            elif self.level_allocate[node.level] == 'num':
+                node.param = node.parent.param * node.num / sum([child.num for child in node.parent.children])
             else:
                 sys.exit("未设置该层分配策略")
                 # node.param = node.parent.param / 8
         # 根据新的设计，只有最后一层设置MLP
-        if node.level == self.max_level:
-            print('zzzzzzzzzzzzz')
+        if node.children == []:
             # TODO 设计好 level数、参数个数、MLP的层数的权衡
-            input, output = self.opt.Network.input, self.opt.Network.output
+            input, output = self.opt.Network.input, self.points_value_array.shape[1]
             output_act = False
             # 根据input和output的大小计算这个节点的MLP的hiden（隐藏层）的层数和output的大小
             hidden, output = cal_hidden_output(param=node.param, layer=layer, input=input, output=output)
@@ -241,7 +203,8 @@ class OctTreeMLP(nn.Module):
                 self.tree2list_dfs(child)
         else:
             self.leaf_node_list.append(node)
-            self.node_hash[(node.d1, node.h1, node.w1)] = node
+            self.leaf_nodes_num = self.leaf_nodes_num + 1
+
 
     def move2device(self, device: str = 'cpu'):
         for node in self.node_list:
@@ -252,7 +215,7 @@ class OctTreeMLP(nn.Module):
     def init_sampler(self):
         batch_size = self.opt.Train.batch_size
         epochs = self.opt.Train.epochs
-        self.sampler = PointSampler(data=self.data, max_level=self.max_level, batch_size=batch_size, epochs=epochs, device=self.device)
+        self.sampler = PointSampler(data=self.points_array, max_level=self.max_level, batch_size=batch_size, epochs=epochs, leaf_nodes_num=self.leaf_nodes_num, device=self.device)
         return self.sampler
 
     def init_optimizer(self):
@@ -271,7 +234,7 @@ class OctTreeMLP(nn.Module):
         for node in self.leaf_node_list:   # 修改，只算叶子结点的params，因为在新的设计中，只有叶子节点有MLP
             self.params_total += sum([p.data.nelement() for p in node.net.net.parameters()])
         bytes = self.params_total*4
-        origin_bytes = os.path.getsize(self.data_path)
+        origin_bytes = get_vtk_size(self.data_path)
         self.ratio = origin_bytes/bytes
         print(f'Number of network parameters: {self.params_total}')
         print('Network bytes: {:.2f}KB({:.2f}MB); Origin bytes: {:.2f}KB({:.2f}MB)'.format(bytes/1024, bytes/1024**2, origin_bytes/1024, origin_bytes/1024**2))
@@ -282,85 +245,34 @@ class OctTreeMLP(nn.Module):
     # 每次轮到eval的时候会调用，比较指标，比较的是全体数据，而不是取样！！！
 
     def predict(self, device: str = 'cpu', batch_size: int = 128):                      # main调用的时候指定了坐标
-        self.predict_data = np.zeros_like(self.data)
-        self.move2device(device=device)
-        coords = self.sampler.coords.to(device)
-        # coords.shape[0]表示的是coords的第一维的长度，即coords的长度，但注意并不是全体坐标，coords只是叶子节点的体积，eg: ( 512/(8**level) )*( 512/(8**level) )*( 512/(8**level) )
-        for index in tqdm(range(0, coords.shape[0], batch_size), desc='Decompressing', leave=False, file=sys.stdout):
-            # 这里的coords是扁平化的坐标，相当于是用一个一维的坐标来表示三维的坐标
-            # coords[index:index+batch_size]表示的是从index开始的batch_size个连续的坐标
-            input = coords[index:index+batch_size]
-            # predict是树调用的，predict_dfs的结果是计算出节点的predict_data
-            self.predict_dfs(self.base_node, index, batch_size, input)
-        self.merge()
-        # predict_data是最下面一层叶节点那一块的预测值
-        self.predict_data = self.predict_data.clip(self.side_info['scale_min'], self.side_info['scale_max'])
-        self.predict_data = invnormalize_data(self.predict_data, **self.side_info)
         self.move2device(device=self.device)
-        return self.predict_data
-
-    def predict_dfs(self, node, index, batch_size, input):
-        # 因为原设计是八叉树的每个节点都有MLP，新设计的只有叶节点有MLP
-        # 这里后面需要修改以下，就是让非叶子节点的输出等于输入
-        if len(node.children) > 0:
-            # input = node.net(input)
-            children = node.children
-            for child in children:
-                self.predict_dfs(child, index, batch_size, input)
-        else:
-            node.predict_data[index:index + batch_size] = node.net(input).detach().cpu().numpy()
-
-    def merge(self):
-        for node in self.leaf_node_list:
-            chunk = node.predict_data  # 节点的predict_data
-            chunk = rearrange(chunk, '(d h w) n -> d h w n', d=node.ds, h=node.hs, w=node.ws)
-            # 下面的是树的predict_data，和上面那个区分开
-            self.predict_data[node.d1:node.d2, node.h1:node.h2, node.w1:node.w2] = chunk
+        self.predict_points = np.zeros_like(self.points_array)
+        self.predict_points_value = np.zeros_like(self.points_value_array)
+        for node in tqdm(self.leaf_node_list, desc='Decompressing', leave=False, file=sys.stdout):
+            cnt = 0
+            for index in range(0, node.num, batch_size):
+                input = node.points_array[index:index+batch_size].to(self.device)  # batch_size超过没有关系
+                self.predict_points[cnt + index:cnt + index+batch_size] = node.points_array[index:index+batch_size]
+                self.predict_points_value[cnt + index:cnt + index+batch_size] = node.net(input).detach().cpu().numpy()
+            cnt = cnt + node.num
+        self.predict_points, self.predict_points_value = sort_in_3D_axies(self.predict_points, self.predict_points_value)
+        self.move2device(device=self.device)
+        return self.predict_points, self.predict_points_value
 
     """cal loss during training"""
 
     def l2loss(self, data_gt, data_hat):
         loss = F.mse_loss(data_gt, data_hat, reduction='none')
-        weight = torch.ones_like(data_gt)
-        l, h, scale = self.loss_weight
-        weight[(data_gt >= 0)] = 10  # 对于 data_gt 中的值位于 [l, h) 区间内的元素，它们在 weight 张量中对应的权重被设置为 scale ， 根据yaml文件，权重更小，即认为不重要
-        loss = loss*weight
         loss = loss.mean()
         return loss
 
-    # def l2loss(self, data_gt, data_hat):
-    #     loss = F.mse_loss(data_gt, data_hat, reduction='none')
-    #
-    #     # 创建一个掩码，只考虑第四维中大于等于 0的点
-    #     mask = data_gt.squeeze(-1) >= 0  # 假设C（通道数）= 1，去除最后一个维度
-    #
-    #     # 应用掩码，只考虑大于0的点
-    #     # 由于mask是三维的，我们需要将loss调整为三维以匹配mask
-    #     loss = loss.squeeze(-1)
-    #     loss = loss[mask]
-    #
-    #     # 如果没有任何大于0的点，避免除以0的错误
-    #     if loss.numel() == 0:
-    #         return torch.tensor(0.0).to(loss.device)
-    #
-    #     # 计算平均损失
-    #     loss = loss.mean()
-    #
-    #     return loss
-
-    def cal_loss(self, idxs, coords):    # 因为输入的只是一个叶子块大小范围内坐标，故输入一次坐标但是是算了所有叶子节点的坐标的loss
+    def cal_loss(self, batch_size):    # 因为输入的只是一个叶子块大小范围内坐标，故输入一次坐标但是是算了所有叶子节点的坐标的loss
         self.loss = 0
-        self.forward_dfs(self.base_node, idxs, coords)
-        self.loss = self.loss.mean()       # 取平均值
-        return self.loss
-
-    def forward_dfs(self, node, idxs, input):
-        if len(node.children) > 0:
-            # input = node.net(input)
-            children = node.children
-            for child in children:
-                self.forward_dfs(child, idxs, input)
-        else:
+        for node in self.leaf_node_list:
+            rand = torch.randint(0, node.points_array.shape[0], (batch_size,))
+            input = node.points_array[rand].to(self.device)  # batch_size超过没有关系
+            label = node.points_value_array[rand].to(self.device)
             predict = node.net(input)
-            label = node.data[idxs, :].to(self.device)   # 获取标签，即真实数据
-            self.loss = self.loss + self.l2loss(label, predict)     ## 这会导致，随着树的层数的增大，loss值成指数增大
+            self.loss = self.loss + self.l2loss(label, predict)
+        # self.loss = self.loss.mean()       # 取平均值
+        return self.loss

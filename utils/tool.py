@@ -1,52 +1,44 @@
 import cv2
 import tifffile
 import os
+import sys
 import numpy as np
-from utils.ReadVTK import readVTK, show3D
+from utils.VTK import readVTK, show3D
 
 def get_type_max(data):
-    dtype = data.dtype.name
-    if dtype == 'uint8':
-        # max = 255
-        max = np.max(data)
-    elif dtype == 'uint12':
-        # max = 4098
-        max = np.max(data)
-    elif dtype == 'uint16':
-        # max = 65535
-        max = np.max(data)
-    elif dtype == 'float32':
-        # max = 65535
-        max = np.max(data)            # 修改的，不确定
-        # max = 1
-    elif dtype == 'float64':
-        # max = 65535
-        max = np.max(data)            # 修改的，不确定
-        # max = 1
-    elif dtype == 'int16':
-        # max = 65535
-        max = np.max(data)
-    else:
-        raise NotImplementedError
+    # dtype = data.dtype.name
+    # if dtype == 'uint8':
+    #     # max = 255
+    #     max = np.max(data)
+    # elif dtype == 'uint12':
+    #     # max = 4098
+    #     max = np.max(data)
+    # elif dtype == 'uint16':
+    #     # max = 65535
+    #     max = np.max(data)
+    # elif dtype == 'float32':
+    #     # max = 65535
+    #     max = np.max(data)            # 修改的，不确定
+    #     # max = 1
+    # elif dtype == 'float64':
+    #     # max = 65535
+    #     max = np.max(data)            # 修改的，不确定
+    #     # max = 1
+    # elif dtype == 'int16':
+    #     # max = 65535
+    #     max = np.max(data)
+    # else:
+    #     raise NotImplementedError
+    max = np.max(data, axis=0)
     return max
 
 # 3d->dhwc or thwc 2d->hwc
-def read_img(path):
+def read_vtk(path):
     postfix = os.path.splitext(path)[-1]
-    if postfix in ['.tif','.tiff']:
-        img = tifffile.imread(path)
-        if len(img.shape) == 3:
-            img = img[...,None]
-        assert len(img.shape)==4                  # 即默认通道数为1 即灰度图像
-    elif postfix in ['.png','.jpg']:
-        img = cv2.imread(path,-1)
-        if len(img.shape) == 2:
-            img = img[...,None]
-        assert len(img.shape)==3
-    elif postfix in ['.vtk']:
-        img = readVTK(path)
+    if postfix != '.vtk':
+        sys.exit('input file not .vtk')
     else:
-        raise NotImplemented
+        img = readVTK(path)
     return img  
 
 def save_img(path, img):
@@ -70,3 +62,12 @@ def get_folder_size(folder_path:str):
     else:
         total_size = os.path.getsize(folder_path)
     return total_size
+
+
+if __name__ == "__main__":
+    test = np.random.rand(25,3)
+    max_values = np.max(test, axis=0)
+    aaa = [1,1,1,5].numpy()
+    print(max_values.shape[0])
+    print(test)
+    print(max_values)

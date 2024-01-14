@@ -9,11 +9,10 @@ import json
 from omegaconf import OmegaConf
 from utils.logger import MyLogger, reproduc
 from utils.OctTree import OctTreeMLP
-from utils.tool import read_img, save_img, get_folder_size
+from utils.tool import read_vtk, save_img, get_folder_size
 from utils.metrics import eval_performance
 from utils.ModelSave import save_tree_models
-from utils.ReadVTK import show3D
-
+from utils.VTK import save_vtk
 
 class CompressFramework:
     def __init__(self, opt, Log) -> None:
@@ -21,7 +20,7 @@ class CompressFramework:
         self.Log = Log
         self.compress_opt = opt.CompressFramwork
         self.data_path = self.compress_opt.Path
-        self.origin_data = read_img(self.data_path)
+        self.points_array, self.points_value_array = read_vtk(self.data_path)
 
     def compress(self):
         time_start = time.time()
@@ -37,11 +36,12 @@ class CompressFramework:
         sampler = tree_mlp.sampler
         optimizer = tree_mlp.optimizer
         lr_scheduler = tree_mlp.lr_scheduler
-        metrics = {'psnr_best': 0, 'psnr_epoch': 0, 'ssim_best': 0, 'ssim_epoch': 0, 'acc200_best': 0, 'acc200_epoch': 0, 'acc500_best': 0, 'acc500_epoch': 0}
+        metrics = {'psnr_best': 0, 'psnr_epoch': 0}
         pbar = tqdm(sampler, desc='Training', leave=True, file=sys.stdout)
-        for step, (sampled_idxs, sampled_coords) in enumerate(pbar):
+
+        for step, batch_size in enumerate(pbar):
             optimizer.zero_grad()
-            loss = tree_mlp.cal_loss(sampled_idxs, sampled_coords)
+            loss = tree_mlp.cal_loss(batch_size)
             loss.backward()
             optimizer.step()
             lr_scheduler.step()
@@ -50,41 +50,30 @@ class CompressFramework:
             if sampler.judge_eval(self.compress_opt.Eval.epochs):
                 time_eval_start = time.time()
                 # predict 相当于解压缩，遍历输入数据的每一个点得出预测的值 eg: 512*512*512
-                predict_data = tree_mlp.predict(device=self.compress_opt.Eval.device, batch_size=self.compress_opt.Eval.batch_size)
+                predict_points, predict_points_value = tree_mlp.predict(device=self.compress_opt.Eval.device, batch_size=self.compress_opt.Eval.batch_size)
                 metrics['decode_time'] = time.time()-time_eval_start
 
-                # 对于vtk类型的输入，只计算ground truth里面大于0的点
-                if os.path.splitext(self.data_path)[-1] != '.vtk':
-                    # eval performance的时候的origin_data, predict_data都是没有经过归一化的原始数据，predict_data求的时候是用归一化的去求，但最后转回来了
-                    psnr, ssim, acc200, acc500 = eval_performance(self.origin_data, predict_data)
-                else:
-                    psnr, ssim, acc200, acc500 = eval_performance(self.origin_data, predict_data, 1)
-                if psnr > metrics['psnr_best']:
+                # eval performance的时候的origin_data, predict_data都是没有经过归一化的原始数据，predict_data求的时候是用归一化的去求，但最后转回来了
+                psnr = eval_performance(self.points_array, self.points_value_array, predict_points, predict_points_value)
+                if psnr[0] > metrics['psnr_best']:  # TODO
                     metrics['psnr_best'] = psnr
                     metrics['psnr_epoch'] = sampler.epochs_count
                     save_tree_models(tree_mlp=tree_mlp, model_dir=os.path.join(self.Log.compressed_dir, 'models_psnr_best'))
-                    save_img(os.path.join(self.Log.decompressed_dir, 'decompressed_psnr_best.tif'), predict_data)
-                if ssim > metrics['ssim_best']:
-                    metrics['ssim_best'] = ssim
-                    metrics['ssim_epoch'] = sampler.epochs_count
-                    save_tree_models(tree_mlp=tree_mlp, model_dir=os.path.join(self.Log.compressed_dir, 'models_ssim_best'))
-                    save_img(os.path.join(self.Log.decompressed_dir, 'decompressed_ssim_best.tif'), predict_data)
-                if acc200 > metrics['acc200_best']:
-                    metrics['acc200_best'] = acc200
-                    metrics['acc200_epoch'] = sampler.epochs_count
-                if acc500 > metrics['acc500_best']:
-                    metrics['acc500_best'] = acc500
-                    metrics['acc500_epoch'] = sampler.epochs_count
-                self.Log.log_metrics({'psnr': psnr, 'ssim': ssim, 'acc200': acc200, 'acc500': acc500}, sampler.epochs_count)
+                    # save_img(os.path.join(self.Log.decompressed_dir, 'decompressed_psnr_best.tif'), predict_data)
+                    save_vtk(self.compress_opt.Path, os.path.join(self.Log.decompressed_dir, 'decompressed_psnr_best.vtk'), predict_points_value)
+
+                self.Log.log_metrics({'psnr': psnr[0]}, sampler.epochs_count)  # TODO
                 time_eval += (time.time() - time_eval_start)
         model_dir = os.path.join(self.Log.compressed_dir, 'models')
         save_tree_models(tree_mlp=tree_mlp, model_dir=model_dir)
+        save_vtk(self.compress_opt.Path, os.path.join(self.Log.decompressed_dir, 'decompressed_psnr_final.vtk'),
+                 predict_points_value)
 
-        if os.path.splitext(self.data_path)[-1] != '.vtk':
-            predict_path = os.path.join(self.Log.decompressed_dir, 'decompressed.tif')
-            save_img(predict_path, predict_data)
-        else:
-            show3D(predict_data, 0, self.Log.decompressed_dir)
+        # if os.path.splitext(self.data_path)[-1] != '.vtk':
+        #     predict_path = os.path.join(self.Log.decompressed_dir, 'decompressed.tif')
+        #     save_img(predict_path, predict_data)
+        # else:
+        #     show3D(predict_data, 0, self.Log.decompressed_dir)
 
         ratio_actual = os.path.getsize(self.data_path)/get_folder_size(model_dir)
         self.Log.log_metrics({'ratio_actual': ratio_actual}, 0)

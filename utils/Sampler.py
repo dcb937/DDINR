@@ -1,8 +1,10 @@
 import torch
 from einops import rearrange
 from typing import Tuple
+import numpy as np
 import copy
 import math
+import sys
 
 
 def create_optim(name, parameters, lr):
@@ -48,19 +50,15 @@ def create_flattened_coords(coords_shape: Tuple) -> torch.Tensor:    # coords的
     flattened_coords = rearrange(coords, 'd h w c -> (d h w) c')
     return flattened_coords
 
-
 class PointSampler:
-    def __init__(self, data: torch.Tensor, max_level: int, batch_size: int, epochs: int, device: str = 'cpu') -> None:
-        self.batch_size = int(batch_size/ 8**max_level)   # max_level 从0开始，2层就是1
+    def __init__(self, data: torch.Tensor, max_level: int, batch_size: int, epochs: int, leaf_nodes_num: int, device: str = 'cpu') -> None:
+        self.batch_size = int(batch_size / 8**max_level)   # max_level 从0开始，2层就是1
         assert self.batch_size > 512 and self.batch_size < 2097152, "Batch size error"
-        # self.batch_size = int(batch_size)
         self.epochs = epochs
         self.device = device
-        assert data.shape[0] % 2**max_level == 0 and data.shape[1] % 2**max_level == 0 and data.shape[
-            1] % 2**max_level == 0, f"{data.shape} can't be devided by 2^{max_level}"
-        self.shape = (data.shape[0]//2**max_level, data.shape[1]//2**max_level, data.shape[2]//2**max_level)        # 划分到最后的叶节点的长宽高
-        self.coords = create_flattened_coords(self.shape).to(device)
-        self.pop_size = self.shape[0]*self.shape[1]*self.shape[2]    # 所谓pop_size指的是划分到最后的叶节点的大小
+        self.data = data
+
+        self.pop_size = data.shape[0] / 8**max_level    # 所谓pop_size指的是划分到最后的叶节点的大小
         self.evaled_epochs = []
 
     def judge_eval(self, eval_epoch):
@@ -73,8 +71,9 @@ class PointSampler:
         else:
             return False
 
+
     def __len__(self):
-        return self.epochs*math.ceil(self.pop_size/self.batch_size)
+        return self.epochs*math.ceil(self.data.shape[0]/self.batch_size)
 
     def __iter__(self):
         self.index = 0
@@ -84,14 +83,26 @@ class PointSampler:
     def __next__(self):              # 每次抽样提供的是划分到最后块的坐标
         if self.index < self.pop_size:
             # sampled_idxs = self.index
-            sampled_idxs = torch.randint(0, self.pop_size, (self.batch_size,))  # 随机取self.batch_size个点，但注意，这里的self.batch_size可不是yaml文件里面的batchsize，而是self.batch_size = int(batch_size/ 8**max_level)
-            sampled_coords = self.coords[sampled_idxs, :]
-            sampled_coords = sampled_coords.to(self.device)
             self.index += self.batch_size
-            return sampled_idxs, sampled_coords
+            return self.batch_size
         elif self.epochs_count < self.epochs-1:
             self.epochs_count += 1
             self.index = 0
             return self.__next__()
         else:
             raise StopIteration
+
+
+if __name__ == "__main__":
+    a = torch.randint(0, 100, (10,))
+    print(a)
+    loss = 1
+    loss = loss + a
+    print(loss)
+
+    points_array = torch.randint(0, 100, (20,3))
+    print(points_array)
+    idx = torch.randint(0, 20, (6,))
+    print(points_array[idx])
+    a = np.random.ranf(0,10)
+    print(a.mean())

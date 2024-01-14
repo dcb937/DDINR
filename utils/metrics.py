@@ -1,7 +1,7 @@
 import os
 import cv2
 import numpy as np
-from utils.tool import get_type_max, read_img, save_img
+from utils.tool import get_type_max, read_vtk, save_img
 from omegaconf import OmegaConf
 import torch
 import json
@@ -32,51 +32,18 @@ def cal_iou_acc_pre(data_gt:np.ndarray,data_hat:np.ndarray,thres:float=1):
 def cal_psnr(data_gt:np.ndarray, data_hat:np.ndarray, data_range):
     data_gt = np.copy(data_gt)
     data_hat = np.copy(data_hat)
-    mse = np.mean(np.power(data_gt/data_range-data_hat/data_range,2))
-    psnr = -10*np.log10(mse)
+    psnr = []
+    for i in range(0, data_range.shape[0]):
+        mse = np.mean(np.power(data_gt[i]/data_range-data_hat[i]/data_range[i],2))
+        psnr.append(-10*np.log10(mse))
     return psnr
 
-def cal_psnr_gt_ge0(data_gt:np.ndarray, data_hat:np.ndarray, data_range):
-    data_gt = np.copy(data_gt)
-    data_hat = np.copy(data_hat)
-    mask = data_gt >= 0
-    # 只对data_gt中大于0的点计算MSE
-    mse = np.mean(np.power(data_gt[mask] / data_range - data_hat[mask] / data_range, 2))
-    psnr = -10*np.log10(mse)
-    return psnr
+def eval_performance(points_array, points_value_array, predict_points, predict_points_value):
+    assert np.array_equal(points_array, predict_points), "points_array != predict_points"
+    max_range = get_type_max(points_value_array)
+    points_value_array = points_value_array.astype(np.float32)
+    predict_points_value = predict_points_value.astype(np.float32)
 
-def eval_performance(orig_data, decompressed_data, isVtk = 0):
-    max_range = get_type_max(orig_data)
-    orig_data = orig_data.astype(np.float32)
-    decompressed_data = decompressed_data.astype(np.float32)
-    # accuracy
-    # 原作者代码算acc的经常会报warning，后续若有需要可以考虑修改一下
-    acc200 = cal_iou_acc_pre(orig_data, decompressed_data, thres=200)[1]
-    acc500 = cal_iou_acc_pre(orig_data, decompressed_data, thres=500)[1]
-    # psnr
-    if isVtk == 1:
-        print('\npsnr count type: VTK')
-        psnr_value = cal_psnr_gt_ge0(orig_data, decompressed_data, max_range)
-    else:
-        psnr_value = cal_psnr(orig_data, decompressed_data, max_range)
-    # ssim
-    orig_data = torch.from_numpy(orig_data)
-    decompressed_data = torch.from_numpy(decompressed_data)
-    # convert to NCHW or NCDHW
-    if len(orig_data.shape) == 3:
-        data1 = rearrange(orig_data, 'h w (n c) -> n c h w', n=1)
-        data2 = rearrange(decompressed_data, 'h w (n c) -> n c h w', n=1)
-        ssim_value = ssim_calc(data1, data2, max_range)
-    elif len(orig_data.shape) == 4:
-        ssim_value_total = 0 
-        for i in tqdm(range(orig_data.shape[0]), desc='Evaluating', leave=False, file=sys.stdout):
-            data1 = copy.deepcopy(orig_data[i])
-            data2 = copy.deepcopy(decompressed_data[i])
-            data1 = rearrange(data1, 'h w (n c) -> n c h w', n=1)
-            data2 = rearrange(data2, 'h w (n c) -> n c h w', n=1)
-            ssim_value_total += ssim_calc(data1, data2, max_range)
-        ssim_value = ssim_value_total/orig_data.shape[0]
-    else:
-        raise ValueError
-    
-    return psnr_value, float(ssim_value), acc200, acc500
+    psnr_value = cal_psnr(points_value_array, predict_points_value, max_range)
+
+    return psnr_value
