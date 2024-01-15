@@ -21,6 +21,7 @@ class CompressFramework:
         self.compress_opt = opt.CompressFramwork
         self.data_path = self.compress_opt.Path
         self.points_array, self.points_value_array = read_vtk(self.data_path)
+        # self.points_array, self.points_value_array = parse_vtk(self.compress_opt)
 
     def compress(self):
         time_start = time.time()
@@ -56,7 +57,7 @@ class CompressFramework:
                 # eval performance的时候的origin_data, predict_data都是没有经过归一化的原始数据，predict_data求的时候是用归一化的去求，但最后转回来了
                 psnr = eval_performance(self.points_array, self.points_value_array, predict_points, predict_points_value)
                 if psnr[0] > metrics['psnr_best']:  # TODO
-                    metrics['psnr_best'] = psnr[0]
+                    metrics['psnr_best'] = psnr[0]  # TODO
                     metrics['psnr_epoch'] = sampler.epochs_count
                     save_tree_models(tree_mlp=tree_mlp, model_dir=os.path.join(self.Log.compressed_dir, 'models_psnr_best'))
                     # save_img(os.path.join(self.Log.decompressed_dir, 'decompressed_psnr_best.tif'), predict_data)

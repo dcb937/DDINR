@@ -8,10 +8,44 @@ import matplotlib.pyplot as plt
 PointOrCell = 'point'
 attribute_name = 'nuTilda'
 origin_points = None
+new_attribute_name_list = []
 
-def parse_opt_vtk():
+def parse_vtk(opt):
+    data_path = opt.Path
+    PointOrCell = opt.VTK.PointOrCell
+    attribute_name_list = opt.VTK.attribute
 
-    pass
+    if PointOrCell not in ['point', 'cell']:
+        raise ValueError("opt.VTK.PointOrCell must be either 'point' or 'cell'.")
+    if not os.path.exists(data_path):
+        raise FileNotFoundError(f"The file {data_path} does not exist.")
+
+    aggregated_value_array = None
+    global new_attribute_name_list
+    if attribute_name_list == []:
+        attribute_name_list = get_VTK_all_attributes(data_path, PointOrCell)
+
+
+    for attribute_name in attribute_name_list:
+        PointOrCell_array, PointOrCell_value_array = readVTK_on_attribute(data_path, PointOrCell, attribute_name)
+        # 根据通道数更新属性名列表
+        num_channels = PointOrCell_value_array.shape[1]
+        if num_channels == 1:
+            new_attribute_name_list.append(attribute_name)
+        else:
+            for i in range(1, num_channels + 1):
+                new_attribute_name_list.append(f"{attribute_name}_{i}")
+
+        # 聚合数组
+        if aggregated_value_array is None:
+            aggregated_value_array = PointOrCell_value_array
+        else:
+            aggregated_value_array = np.hstack((aggregated_value_array, PointOrCell_value_array))
+
+    return PointOrCell_array, aggregated_value_array
+
+def get_new_attribute_name_list():
+    return new_attribute_name_list
 
 def sort_in_3D_axies(predict_points, predict_points_value):
     sorted_indices = np.lexsort((predict_points[:, 2], predict_points[:, 1], predict_points[:, 0]))
@@ -101,6 +135,84 @@ def readVTK(file_path):
     if not os.path.exists(file_path):
         raise FileNotFoundError(f"The file {file_path} does not exist.")
     reader.SetFileName(file_path)
+    reader.Update()
+
+    unstructured_grid = reader.GetOutput()
+    if PointOrCell == 'point':
+        if unstructured_grid.GetPointData().HasArray(attribute_name):
+            attribute = unstructured_grid.GetPointData().GetArray(attribute_name)
+            attribute_dimension = attribute.GetNumberOfComponents()
+            print(f"The dimension of the attribute '{attribute_name}' is: {attribute_dimension}")
+        else:
+            sys.exit(f"Attribute '{attribute_name}' not found in the PointData.")
+    elif PointOrCell == 'cell':
+        if unstructured_grid.GetCellData().HasArray(attribute_name):
+            attribute = unstructured_grid.GetCellData().GetArray(attribute_name)
+            attribute_dimension = attribute.GetNumberOfComponents()
+            print(f"The dimension of the attribute '{attribute_name}' is: {attribute_dimension}")
+        else:
+            sys.exit(f"Attribute '{attribute_name}' not found in the CellData.")
+    else:
+        sys.exit(f"Wrong opt: '{PointOrCell}'")
+
+
+    channel = attribute_dimension
+
+    # 获取点的数量
+    num_points = unstructured_grid.GetNumberOfPoints()
+    points_list = []
+    points_value_list = []
+
+    # 遍历每个点
+    for i in range(num_points):
+        # 获取原始点坐标
+        point = unstructured_grid.GetPoint(i)
+
+        points_list.append(point)
+
+        value = attribute.GetTuple(i)
+        points_value_list.append(value)
+
+    points_array, points_value_array = np.array(points_list), np.array(points_value_list)
+    origin_points = points_array
+    points_array, points_value_array = sort_in_3D_axies(points_array, points_value_array)
+    return points_array, points_value_array
+
+def get_VTK_all_attributes(data_path, PointOrCell):
+    # 创建并设置VTK读取器
+    reader = vtk.vtkUnstructuredGridReader()
+    if not os.path.exists(data_path):
+        raise FileNotFoundError(f"The file {data_path} does not exist.")
+    reader.SetFileName(data_path)
+    reader.Update()
+
+    # 获取VTK文件的输出
+    unstructured_grid = reader.GetOutput()
+
+    # 获取所有属性
+    attributes_list = []
+    if PointOrCell == 'point':
+        point_data = unstructured_grid.GetPointData()
+        for i in range(point_data.GetNumberOfArrays()):
+            attributes_list.append(point_data.GetArrayName(i))
+    elif PointOrCell == 'cell':
+        cell_data = unstructured_grid.GetCellData()
+        for i in range(cell_data.GetNumberOfArrays()):
+            attributes_list.append(cell_data.GetArrayName(i))
+
+    return attributes_list
+
+def readVTK_on_attribute(data_path, PointOrCell, attribute_name):
+    global origin_points
+
+    print('read VTK file')
+    print(f'Set option: {PointOrCell}.{attribute_name}')
+
+    # 创建并设置 VTK 读取器
+    reader = vtk.vtkUnstructuredGridReader()
+    if not os.path.exists(data_path):
+        raise FileNotFoundError(f"The file {data_path} does not exist.")
+    reader.SetFileName(data_path)
     reader.Update()
 
     unstructured_grid = reader.GetOutput()
