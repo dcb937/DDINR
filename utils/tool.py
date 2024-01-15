@@ -3,7 +3,7 @@ import tifffile
 import os
 import sys
 import numpy as np
-from utils.VTK import readVTK, show3D
+
 
 def get_type_max(data):
     # dtype = data.dtype.name
@@ -32,14 +32,6 @@ def get_type_max(data):
     max = np.max(data, axis=0)
     return max
 
-# 3d->dhwc or thwc 2d->hwc
-def read_vtk(path):
-    postfix = os.path.splitext(path)[-1]
-    if postfix != '.vtk':
-        sys.exit('input file not .vtk')
-    else:
-        img = readVTK(path)
-    return img  
 
 def save_img(path, img):
     postfix = os.path.splitext(path)[-1]

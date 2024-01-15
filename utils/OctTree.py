@@ -7,10 +7,9 @@ import sys
 import math
 from tqdm import tqdm
 import torch.nn.functional as F
-from utils.tool import read_vtk, save_img
 from utils.Sampler import create_optim, create_flattened_coords, PointSampler, create_lr_scheduler
 from utils.Network import MLP
-from utils.VTK import get_vtk_size, sort_in_3D_axies
+from utils.VTK import get_vtk_size_bytes, sort_in_3D_axies
 
 
 class Node():
@@ -128,7 +127,7 @@ class OctTreeMLP(nn.Module):
     def get_hyper(self):
         # Parameter allocation scheme: (1) ratio between levels (2) parameter allocation in the same level
         ratio = self.opt.Ratio
-        origin_bytes = get_vtk_size(self.data_path)
+        origin_bytes = get_vtk_size_bytes()
         ideal_bytes = int(origin_bytes/ratio)
         ideal_params = int(ideal_bytes/4)
         self.ideal_params = ideal_params   # 新加的
@@ -238,7 +237,7 @@ class OctTreeMLP(nn.Module):
         for node in self.leaf_node_list:   # 修改，只算叶子结点的params，因为在新的设计中，只有叶子节点有MLP
             self.params_total += sum([p.data.nelement() for p in node.net.net.parameters()])
         bytes = self.params_total*4
-        origin_bytes = get_vtk_size(self.data_path)
+        origin_bytes = get_vtk_size_bytes()
         self.ratio = origin_bytes/bytes
         print(f'Number of network parameters: {self.params_total}')
         print('Network bytes: {:.2f}KB({:.2f}MB); Origin bytes: {:.2f}KB({:.2f}MB)'.format(bytes/1024, bytes/1024**2, origin_bytes/1024, origin_bytes/1024**2))

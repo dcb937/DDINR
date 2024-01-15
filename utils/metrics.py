@@ -1,7 +1,7 @@
 import os
 import cv2
 import numpy as np
-from utils.tool import get_type_max, read_vtk, save_img
+from utils.tool import get_type_max, save_img
 from omegaconf import OmegaConf
 import torch
 import json
