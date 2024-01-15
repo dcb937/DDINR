@@ -9,6 +9,10 @@ PointOrCell = 'point'
 attribute_name = 'nuTilda'
 origin_points = None
 
+def parse_opt_vtk():
+
+    pass
+
 def sort_in_3D_axies(predict_points, predict_points_value):
     sorted_indices = np.lexsort((predict_points[:, 2], predict_points[:, 1], predict_points[:, 0]))
     predict_points_sorted = predict_points[sorted_indices]

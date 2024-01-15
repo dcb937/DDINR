@@ -27,7 +27,11 @@ CompressFramwork:
   Network:
     input: 3
     output: 1      # 废弃
-    level_info: [[0.8, 3, ReLU, num]]  # [parameter ratio, layer, act, allocate]
+    #level_info: [[0.8, 3, ReLU, num],[0.8, 3, ReLU, num]]  # [parameter ratio, layer, act, allocate]
+    max_level: 2
+    allocation_scheme: var
+    act: Sine  # Sine, ReLU, LeakyReLU, Sigmoid, Tanh
+    layer: 3
     w0: 30
 
 Log: 

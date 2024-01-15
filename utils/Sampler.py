@@ -52,6 +52,7 @@ def create_flattened_coords(coords_shape: Tuple) -> torch.Tensor:    # coords的
 
 class PointSampler:
     def __init__(self, data: torch.Tensor, max_level: int, batch_size: int, epochs: int, leaf_nodes_num: int, device: str = 'cpu') -> None:
+        self.origin_batch_size = batch_size
         self.batch_size = int(batch_size / 8**max_level)   # max_level 从0开始，2层就是1
         assert self.batch_size > 512 and self.batch_size < 2097152, "Batch size error"
         self.epochs = epochs
@@ -73,7 +74,7 @@ class PointSampler:
 
 
     def __len__(self):
-        return self.epochs*math.ceil(self.data.shape[0]/self.batch_size)
+        return self.epochs*math.ceil(self.data.shape[0]/self.origin_batch_size)
 
     def __iter__(self):
         self.index = 0

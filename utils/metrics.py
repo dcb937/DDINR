@@ -34,9 +34,19 @@ def cal_psnr(data_gt:np.ndarray, data_hat:np.ndarray, data_range):
     data_hat = np.copy(data_hat)
     psnr = []
     for i in range(0, data_range.shape[0]):
-        mse = np.mean(np.power(data_gt[i]/data_range-data_hat[i]/data_range[i],2))
+        mse = np.mean(np.power(data_gt[:,i]/data_range[i]-data_hat[:,i]/data_range[i],2))
         psnr.append(-10*np.log10(mse))
     return psnr
+
+    # psnr = []
+    # data_gt_tensor = torch.tensor(data_gt)
+    # data_hat_tensor = torch.tensor(data_hat)
+    # mse = torch.mean((data_gt_tensor - data_hat_tensor) ** 2)
+    # if mse == 0:
+    #     return float('inf')
+    # max_pixel = 0.15
+    # psnr.append(20 * np.log10(max_pixel / torch.sqrt(mse)).item())
+    # return psnr
 
 def eval_performance(points_array, points_value_array, predict_points, predict_points_value):
     assert np.array_equal(points_array, predict_points), "points_array != predict_points"

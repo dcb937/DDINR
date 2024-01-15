@@ -17,6 +17,7 @@ class Node():
     def __init__(self, parent, level, points_array, points_value_array, di, hi, wi, device):
         self.level = level
         self.parent = parent
+        self.origin_points_array, self.origin_points_value_array = points_array, points_value_array
         self.points_array, self.points_value_array = [], []
         self.device = device
 
@@ -48,7 +49,7 @@ class Node():
         self.children = []
         self.param = 0     # 新加的
         # self.aoi = float((self.data > 0).sum())
-        # self.var = float(((self.data-self.data.mean())**2).mean())
+        self.var = float(((self.points_value_array-self.points_value_array.mean())**2).mean())
         self.num = self.points_array.shape[0]
 
     def get_children(self):
@@ -58,7 +59,7 @@ class Node():
         for d in range(2):
             for h in range(2):
                 for w in range(2):
-                    child = Node(parent=self, level=self.level+1, origin_data=self.origin_data, di=2*self.di+d, hi=2*self.hi+h, wi=2*self.wi+w, device=self.device)
+                    child = Node(parent=self, level=self.level+1, points_array=self.origin_points_array, points_value_array=self.origin_points_value_array, di=2*self.di+d, hi=2*self.hi+h, wi=2*self.wi+w, device=self.device)
                     self.children.append(child)
         return self.children
 
@@ -86,13 +87,17 @@ def cal_hidden_output(param, layer, input, output: int = None):
 
 
 class OctTreeMLP(nn.Module):
-    def __init__(self, opt) -> None:
+    def __init__(self, opt, points_array, points_value_array) -> None:
         super().__init__()
         self.opt = opt
-        self.max_level = len(opt.Network.level_info)-1
+        self.max_level = opt.Network.max_level - 1
+        self.act = opt.Network.act
+        self.layer = opt.Network.layer
+        self.allocation_scheme = opt.Network.allocation_scheme
+
         self.data_path = opt.Path
         self.device = opt.Train.device
-        self.points_array, self.points_value_array = read_vtk(self.data_path)
+        self.points_array, self.points_value_array = points_array, points_value_array
         self.points_array, self.points_value_array = torch.Tensor(self.points_array), torch.Tensor(self.points_value_array)
         self.loss_weight = opt.Train.weight
         self.leaf_nodes_num = 0
@@ -127,14 +132,13 @@ class OctTreeMLP(nn.Module):
         ideal_bytes = int(origin_bytes/ratio)
         ideal_params = int(ideal_bytes/4)
         self.ideal_params = ideal_params   # 新加的
-        level_info = self.opt.Network.level_info
-        # TODO  后续要改
-        node_ratios = [info[0] for info in level_info]                          # 树每层level的 节点的参数的ratio
-        level_ratios = [node_ratios[i] * 8 ** i for i in range(len(node_ratios))]   # 树的每个层level的参数的ratio，是节点ratio*(8**层数)，相当于是这一层节点的总数乘上单个节点的ratio
-        self.level_param = [ideal_params/sum(level_ratios)*ratio for ratio in level_ratios]  # 每一个层的参数的个数
-        self.level_layer = [info[1] for info in level_info]                     # 每个节点由一个MLP组成，每个节点的MLP的层数layer
-        self.level_act = [info[2] for info in level_info]                       # 激活函数  都采用的是sine
-        self.level_allocate = [info[3] for info in level_info]                  # 层内allocate方式有equal均分等方式
+        # level_info = self.opt.Network.level_info
+        # node_ratios = [info[0] for info in level_info]                          # 树每层level的 节点的参数的ratio
+        # level_ratios = [node_ratios[i] * 8 ** i for i in range(len(node_ratios))]   # 树的每个层level的参数的ratio，是节点ratio*(8**层数)，相当于是这一层节点的总数乘上单个节点的ratio
+        # self.level_param = [ideal_params/sum(level_ratios)*ratio for ratio in level_ratios]  # 每一个层的参数的个数
+        # self.level_layer = [info[1] for info in level_info]                     # 每个节点由一个MLP组成，每个节点的MLP的层数layer
+        # self.level_act = [info[2] for info in level_info]                       # 激活函数  都采用的是sine
+        # self.level_allocate = [info[3] for info in level_info]                  # 层内allocate方式有equal均分等方式
 
 
     def init_network(self):
@@ -147,21 +151,21 @@ class OctTreeMLP(nn.Module):
             print(self.net_structure[key])
 
     def init_network_dfs(self, node):
-        layer = self.level_layer[node.level]                                                    # layer表示这一层的MLP有几层
-        act = self.level_act[node.level]
+        # layer = self.level_layer[node.level]                                                    # layer表示这一层的MLP有几层
+        # act = self.level_act[node.level]
 
         if self.max_level == 0:                                                                 # 如果只有一层，那么这一层的输入输出的个数就是配置文件里面设置的
             node.param = self.ideal_params
         elif node.level == 0:                                                                   # output设为none 意味着输出层的维度并未预先固定，而是根据某些条件或计算来动态确定。
             node.param = self.ideal_params
         else:
-            if self.level_allocate[node.level] == 'equal':
+            if self.allocation_scheme == 'equal':
                 node.param = node.parent.param / 8
-            elif self.level_allocate[node.level] == 'aoi':
+            elif self.allocation_scheme == 'aoi':
                 node.param = node.parent.param * node.aoi / sum([child.aoi for child in node.parent.children])
-            elif self.level_allocate[node.level] == 'var':
+            elif self.allocation_scheme == 'var':
                 node.param = node.parent.param * node.var / sum([child.var for child in node.parent.children])
-            elif self.level_allocate[node.level] == 'num':
+            elif self.allocation_scheme == 'num':
                 node.param = node.parent.param * node.num / sum([child.num for child in node.parent.children])
             else:
                 sys.exit("未设置该层分配策略")
@@ -172,8 +176,8 @@ class OctTreeMLP(nn.Module):
             input, output = self.opt.Network.input, self.points_value_array.shape[1]
             output_act = False
             # 根据input和output的大小计算这个节点的MLP的hiden（隐藏层）的层数和output的大小
-            hidden, output = cal_hidden_output(param=node.param, layer=layer, input=input, output=output)
-            node.init_network(input=input, output=output, hidden=hidden, layer=layer, act=act, output_act=output_act, w0=self.opt.Network.w0)  # 构建这一节点的MLP
+            hidden, output = cal_hidden_output(param=node.param, layer=self.layer, input=input, output=output)
+            node.init_network(input=input, output=output, hidden=hidden, layer=self.layer, act=self.act, output_act=output_act, w0=self.opt.Network.w0)  # 构建这一节点的MLP
             if not f'Level{node.level}' in self.net_structure.keys():
                 self.net_structure[f'Level{node.level}'] = {}
             # self.net_structure[f'Level{node.level}'][f'{node.di}-{node.hi}-{node.wi}'] = node.net.hyper
@@ -248,12 +252,13 @@ class OctTreeMLP(nn.Module):
         self.move2device(device=self.device)
         self.predict_points = np.zeros_like(self.points_array)
         self.predict_points_value = np.zeros_like(self.points_value_array)
+        cnt = 0
         for node in tqdm(self.leaf_node_list, desc='Decompressing', leave=False, file=sys.stdout):
-            cnt = 0
             for index in range(0, node.num, batch_size):
                 input = node.points_array[index:index+batch_size].to(self.device)  # batch_size超过没有关系
-                self.predict_points[cnt + index:cnt + index+batch_size] = node.points_array[index:index+batch_size]
-                self.predict_points_value[cnt + index:cnt + index+batch_size] = node.net(input).detach().cpu().numpy()
+                actual_batch_size = input.shape[0]
+                self.predict_points[cnt + index:cnt + index+actual_batch_size] = node.points_array[index:index+actual_batch_size]
+                self.predict_points_value[cnt + index:cnt + index+actual_batch_size] = node.net(input).detach().cpu().numpy()
             cnt = cnt + node.num
         self.predict_points, self.predict_points_value = sort_in_3D_axies(self.predict_points, self.predict_points_value)
         self.move2device(device=self.device)

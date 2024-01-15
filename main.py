@@ -25,7 +25,7 @@ class CompressFramework:
     def compress(self):
         time_start = time.time()
         time_eval = 0
-        tree_mlp = OctTreeMLP(self.compress_opt)
+        tree_mlp = OctTreeMLP(self.compress_opt, self.points_array, self.points_value_array)
         f_structure = open(os.path.join(self.Log.info_dir, 'structure.txt'), 'w+')
         for key in tree_mlp.net_structure:
             f_structure.write('*'*12+key+'*'*12+'\n')
@@ -56,7 +56,7 @@ class CompressFramework:
                 # eval performance的时候的origin_data, predict_data都是没有经过归一化的原始数据，predict_data求的时候是用归一化的去求，但最后转回来了
                 psnr = eval_performance(self.points_array, self.points_value_array, predict_points, predict_points_value)
                 if psnr[0] > metrics['psnr_best']:  # TODO
-                    metrics['psnr_best'] = psnr
+                    metrics['psnr_best'] = psnr[0]
                     metrics['psnr_epoch'] = sampler.epochs_count
                     save_tree_models(tree_mlp=tree_mlp, model_dir=os.path.join(self.Log.compressed_dir, 'models_psnr_best'))
                     # save_img(os.path.join(self.Log.decompressed_dir, 'decompressed_psnr_best.tif'), predict_data)
