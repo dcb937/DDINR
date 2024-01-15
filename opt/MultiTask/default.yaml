@@ -1,24 +1,39 @@
 Dynamic:
   - PRODUCT:
     - CONCAT:
-      - CompressFramwork.Path: data/neghip_64x64x64_uint8.tif
+      - CompressFramwork.Path: data/tetBox_5000.vtk
         
     - CONCAT:
       - CompressFramwork.Ratio: 64
 
     - CONCAT:
-      - CompressFramwork.Train.batch_size: 262144
-        CompressFramwork.Train.epochs: 20000
-        CompressFramwork.Eval.batch_size: 262144   # 废弃
-        CompressFramwork.Eval.epochs: 2000
+      - CompressFramwork.Train.batch_size: 524288
+        CompressFramwork.Train.epochs: 30000
+        CompressFramwork.Eval.batch_size: 524288   # 废弃
+        CompressFramwork.Eval.epochs: 1000
 
     - CONCAT:
-      - CompressFramwork.Network.level_info: [[1.0, 5, Sine, aoi]]   # 第一个值废弃，只有最后一层的layer管用
+      - CompressFramwork:
+          Network:
+            max_level: 2
+            allocation_scheme: num
+            act: LeakyReLU0.005  # Sine, ReLU, LeakyReLU0.01, Sigmoid, Tanh
+            layer: 3
         Log.project_name: default0
-      - CompressFramwork.Network.level_info: [[1.0, 2, Sine, aoi], [1.0, 3, Sine, aoi]]
+      - CompressFramwork:
+          Network:
+            max_level: 2
+            allocation_scheme: num
+            act: LeakyReLU0.02  # Sine, ReLU, LeakyReLU0.01, Sigmoid, Tanh
+            layer: 3
         Log.project_name: default1
-      # - CompressFramwork.Network.level_info: [[1.0, 2, Sine, euqal], [1.0, 2, Sine, equal], [1.5, 3, Sine, equal]]
-      #   Log.project_name: default2
+      - CompressFramwork:
+          Network:
+            max_level: 2
+            allocation_scheme: num
+            act: LeakyReLU0.03  # Sine, ReLU, LeakyReLU0.01, Sigmoid, Tanh
+            layer: 3
+        Log.project_name: default2
 
 Static:
   Reproduc: 
@@ -52,6 +67,9 @@ Static:
       output: 1
       level_info: [[1.0, 2, Sine, euqal], [0.8, 2, Sine, equal], [1.5, 3, Sine, aoi]]  # [parameter ratio, layer, act, allocate]
       w0: 30
+    VTK:
+      PointOrCell: 'point'          # point cell 一次只能选一种，因为这两个的输入不同
+      attribute: [ 'nuTilda' ]      # [nuTilda]
 
   Log: 
     project_name: default

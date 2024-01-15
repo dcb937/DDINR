@@ -46,10 +46,16 @@ class Task:
 
     def start(self):
         if self.stdout == '':
-            self.p = subprocess.Popen([self.command], shell=True)
+            if os.name == "nt":
+                self.p = subprocess.Popen(self.command, shell=True)
+            else:
+                self.p = subprocess.Popen([self.command], shell=True)
         else:
             self.stderr_handler = open(self.stdout, 'w')
-            self.p = subprocess.Popen([self.command], shell=True, stdout=self.stderr_handler)
+            if os.name == "nt":
+                self.p = subprocess.Popen(self.command, shell=True, stdout=self.stderr_handler)
+            else:
+                self.p = subprocess.Popen([self.command], shell=True, stdout=self.stderr_handler)
 
     def update(self):
         self.returncode = self.p.poll()

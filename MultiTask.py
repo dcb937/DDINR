@@ -11,6 +11,7 @@ import shutil
 import subprocess
 from utils.misc import omegaconf2dotlist, CONCAT, omegaconf2dict
 from utils.Multiprocess import Task, Queue
+from pathlib import Path
 
 timestamp = time.strftime("_%Y_%m%d_%H%M%S")
 
@@ -18,9 +19,10 @@ def gen_task_list(yaml_path:str, main_script_path:str):
     task_list = []
     opt = OmegaConf.load(yaml_path)
     # create a temp dir to save the opt in .yaml file
-    temp_dir = opj(opd(yaml_path),'temp_opt'+timestamp)
+    yaml_dir = os.path.dirname(yaml_path)
+    temp_dir = os.path.join(yaml_dir, 'temp_opt' + timestamp).replace('\\','/')
     os.makedirs(temp_dir, exist_ok=True)
-    temp_stdout = opj(opd(yaml_path),'temp_stdout'+timestamp)
+    temp_stdout = os.path.join(yaml_dir, 'temp_stdout' + timestamp).replace('\\','/')
     os.makedirs(temp_stdout, exist_ok=True)
     static = omegaconf2dotlist(opt.Static)
     dynamic_list = CONCAT(opt.Dynamic)
@@ -28,7 +30,7 @@ def gen_task_list(yaml_path:str, main_script_path:str):
     # task
     for task_idx,dotlist in enumerate(dotlist_list):
         task_opt_yaml = OmegaConf.from_dotlist(dotlist)
-        task_opt_path = opj(temp_dir, str(task_idx) + '.yaml')
+        task_opt_path = opj(temp_dir, str(task_idx) + '.yaml').replace('\\','/')
         OmegaConf.save(task_opt_yaml, task_opt_path)
         # devide = False if task_opt_yaml.devide.type == 'None' else True
         devide = False
