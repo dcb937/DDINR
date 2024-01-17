@@ -29,7 +29,7 @@ def get_type_max(data):
     #     max = np.max(data)
     # else:
     #     raise NotImplementedError
-    max = np.max(data, axis=0)
+    max = np.max(data, axis=0) - np.min(data,  axis=0)
     return max
 
 

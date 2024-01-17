@@ -11,6 +11,27 @@ from utils.Sampler import create_optim, create_flattened_coords, PointSampler, c
 from utils.Network import MLP
 from utils.VTK import get_vtk_size_bytes, sort_in_3D_axies
 
+def normalize_data(data:np.ndarray, scale_min, scale_max):
+    dtype = data.dtype      # 获取到的是整个data的数据类型（在numpy中是一致的），故在后续可能遇到的不同维度不同类型的情况这里没有考虑，不过int和float都是4个byte，倒也无所谓
+    data = data.astype(np.float32)
+    data_min, data_max = data.min(axis=0), data.max(axis=0)
+    data = (data - data_min)/(data_max - data_min)
+    data = data*(scale_max - scale_min) + scale_min
+    data = torch.tensor(data, dtype=torch.float)
+    side_info = {'scale_min':scale_min, 'scale_max':scale_max, 'data_min':data_min, 'data_max':data_max, 'dtype':dtype}
+    return data, side_info
+
+def invnormalize_data(data:np.ndarray, scale_min, scale_max, data_min, data_max, dtype):
+    # 确保 data_min 和 data_max 是一维数组
+    data_min = np.array(data_min)
+    data_max = np.array(data_max)
+    # 标准化数据
+    data = (data - scale_min) / (scale_max - scale_min)
+    # 反标准化数据
+    data = data * (data_max - data_min) + data_min
+    # 转换数据类型
+    data = data.astype(dtype=dtype)
+    return data
 
 class Node():
     def __init__(self, parent, level, points_array, points_value_array, di, hi, wi, device):
@@ -50,6 +71,7 @@ class Node():
         # self.aoi = float((self.data > 0).sum())
         self.var = float(((self.points_value_array-self.points_value_array.mean())**2).mean())
         self.num = self.points_array.shape[0]
+        self.num_var = self.var*self.num
 
     def get_children(self):
         if self.num == 0:
@@ -96,7 +118,8 @@ class OctTreeMLP(nn.Module):
 
         self.data_path = opt.Path
         self.device = opt.Train.device
-        self.points_array, self.points_value_array = points_array, points_value_array
+        self.points_array = points_array
+        self.points_value_array, self.side_info = normalize_data(points_value_array, opt.Preprocess.normal_min, opt.Preprocess.normal_max)
         self.points_array, self.points_value_array = torch.Tensor(self.points_array), torch.Tensor(self.points_value_array)
         self.loss_weight = opt.Train.weight
         self.leaf_nodes_num = 0
@@ -161,11 +184,13 @@ class OctTreeMLP(nn.Module):
             if self.allocation_scheme == 'equal':
                 node.param = node.parent.param / 8
             elif self.allocation_scheme == 'aoi':
-                node.param = node.parent.param * node.aoi / sum([child.aoi for child in node.parent.children])
+                node.param = node.parent.param * node.aoi / node.parent.aoi
             elif self.allocation_scheme == 'var':
-                node.param = node.parent.param * node.var / sum([child.var for child in node.parent.children])
+                node.param = node.parent.param * node.var / node.parent.var
             elif self.allocation_scheme == 'num':
-                node.param = node.parent.param * node.num / sum([child.num for child in node.parent.children])
+                node.param = node.parent.param * node.num / node.parent.num
+            elif self.allocation_scheme == 'num_var':
+                node.param = node.parent.param * node.num_var / node.parent.num_var
             else:
                 sys.exit("未设置该层分配策略")
                 # node.param = node.parent.param / 8
@@ -184,7 +209,7 @@ class OctTreeMLP(nn.Module):
             self.net_structure[f'Level{node.level}'][f'{node.di}-{node.hi}-{node.wi}'] = '{}->{}->{}({}&{}&{})'.format(
                 hyper['input'], hyper['hidden'], hyper['output'], hyper['layer'], hyper['act'], hyper['output_act'])
 
-        print('At level {}, number of param of this node is {}'.format(node.level, node.param))
+        print(f'At level {node.level}, number of param of this node is {node.param}. num: {node.num}, var: {node.var}')
 
         children = node.children
         for child in children:
@@ -258,10 +283,11 @@ class OctTreeMLP(nn.Module):
                 actual_batch_size = input.shape[0]
                 self.predict_points[cnt + index:cnt + index+actual_batch_size] = node.points_array[index:index+actual_batch_size]
                 self.predict_points_value[cnt + index:cnt + index+actual_batch_size] = node.net(input).detach().cpu().numpy()
+            self.print_loss(node, l2loss(node.points_value_array[:], self.predict_points_value[cnt:cnt + node.num]))
             cnt = cnt + node.num
         self.predict_points, self.predict_points_value = sort_in_3D_axies(self.predict_points, self.predict_points_value)
         self.move2device(device=self.device)
-        return self.predict_points, self.predict_points_value
+        return self.predict_points, invnormalize_data(self.predict_points_value, **self.side_info)
 
     """cal loss during training"""
 
@@ -280,3 +306,6 @@ class OctTreeMLP(nn.Module):
             self.loss = self.loss + self.l2loss(label, predict)
         # self.loss = self.loss.mean()       # 取平均值
         return self.loss
+
+    def print_loss(self, node, loss):
+        print(f'\nnode.param: {node.param}, node.num: {node.num}, node.var: {node.var} -> loss: {loss}')

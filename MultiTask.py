@@ -45,8 +45,12 @@ def gen_task_list(yaml_path:str, main_script_path:str):
 def main():
     task_list, temp_dir, temp_stdout = gen_task_list(args.p, args.stp)
     try:
-        queue = Queue(task_list, args.g)
-        queue.start(args.t, remind=True, batch_compress=True)
+        for task in task_list:
+            command = f'{task.command} -g 0'
+            print(f'Command: {command}')
+            process = subprocess.run(command, shell=True, check=True)
+        # queue = Queue(task_list, args.g)
+        # queue.start(args.t, remind=True, batch_compress=True)
         shutil.rmtree(temp_dir)
         shutil.rmtree(temp_stdout)
     except:

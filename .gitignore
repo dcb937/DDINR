@@ -1,3 +1,6 @@
 outputs
 *.pyc
 .idea/
+data/tetBox_5000.vtk
+opt/MultiTask/temp_opt*
+data/
