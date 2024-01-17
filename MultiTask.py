@@ -45,7 +45,7 @@ def gen_task_list(yaml_path:str, main_script_path:str):
 def main():
     task_list, temp_dir, temp_stdout = gen_task_list(args.p, args.stp)
     try:
-        if os.name == "nt":      # win 上只能一个一个运行，不然会报错，不知道为什么
+        if os.name == "nt":   
             for task in task_list:
                 command = f'{task.command} -g 0'
                 print(f'Command: {command}')
