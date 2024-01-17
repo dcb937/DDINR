@@ -54,3 +54,4 @@ requests
 typing-extensions
 urllib3
 packaging
+vtk

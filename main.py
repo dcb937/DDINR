@@ -73,8 +73,8 @@ class CompressFramework:
                     time_eval += (time.time() - time_eval_start)
         model_dir = os.path.join(self.Log.compressed_dir, 'models')
         save_tree_models(tree_mlp=tree_mlp, model_dir=model_dir)
-        save_vtk(self.compress_opt.Path, os.path.join(self.Log.decompressed_dir, 'decompressed_psnr_final.vtk'),
-                 predict_points_value)
+        # save_vtk(self.compress_opt.Path, os.path.join(self.Log.decompressed_dir, 'decompressed_psnr_final.vtk'),
+        #          predict_points_value)
 
 
         ratio_actual = get_vtk_size_bytes()/get_folder_size(model_dir)
