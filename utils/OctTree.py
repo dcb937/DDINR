@@ -68,6 +68,7 @@ class Node():
         self.points_value_array.to(device)
         self.children = []
         self.param = 0     # 新加的
+        self.actual_param = 0
         # self.aoi = float((self.data > 0).sum())
         self.var = float(((self.points_value_array-self.points_value_array.mean())**2).mean())
         self.num = self.points_array.shape[0]
@@ -202,6 +203,7 @@ class OctTreeMLP(nn.Module):
             # 根据input和output的大小计算这个节点的MLP的hiden（隐藏层）的层数和output的大小
             hidden, output = cal_hidden_output(param=node.param, layer=self.layer, input=input, output=output)
             node.init_network(input=input, output=output, hidden=hidden, layer=self.layer, act=self.act, output_act=output_act, w0=self.opt.Network.w0)  # 构建这一节点的MLP
+            node.actual_param = sum([p.data.nelement() for p in node.net.net.parameters()])
             if not f'Level{node.level}' in self.net_structure.keys():
                 self.net_structure[f'Level{node.level}'] = {}
             # self.net_structure[f'Level{node.level}'][f'{node.di}-{node.hi}-{node.wi}'] = node.net.hyper
@@ -283,7 +285,7 @@ class OctTreeMLP(nn.Module):
                 actual_batch_size = input.shape[0]
                 self.predict_points[cnt + index:cnt + index+actual_batch_size] = node.points_array[index:index+actual_batch_size]
                 self.predict_points_value[cnt + index:cnt + index+actual_batch_size] = node.net(input).detach().cpu().numpy()
-            self.print_loss(node, l2loss(node.points_value_array[:], self.predict_points_value[cnt:cnt + node.num]))
+            self.print_loss(node, self.l2loss(node.points_value_array[:], torch.Tensor(self.predict_points_value[cnt:cnt + node.num])))
             cnt = cnt + node.num
         self.predict_points, self.predict_points_value = sort_in_3D_axies(self.predict_points, self.predict_points_value)
         self.move2device(device=self.device)
@@ -308,4 +310,4 @@ class OctTreeMLP(nn.Module):
         return self.loss
 
     def print_loss(self, node, loss):
-        print(f'\nnode.param: {node.param}, node.num: {node.num}, node.var: {node.var} -> loss: {loss}')
+        print(f'\nnode.param: {node.actual_param}, node.num: {node.num}, node.var: {node.var} -> loss: {loss}')

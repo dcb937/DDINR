@@ -67,8 +67,7 @@ class CompressFramework:
                         metrics[f'{new_attribute_name_list[i]}_psnr_best'] = psnr[i]
                         metrics[f'{new_attribute_name_list[i]}_psnr_epoch'] = sampler.epochs_count
                         save_tree_models(tree_mlp=tree_mlp, model_dir=os.path.join(self.Log.compressed_dir, f'models_{new_attribute_name_list[i]}_psnr_best'))
-                        # save_img(os.path.join(self.Log.decompressed_dir, 'decompressed_psnr_best.tif'), predict_data)
-                        save_vtk(self.compress_opt.Path, os.path.join(self.Log.decompressed_dir, f'decompressed_{new_attribute_name_list[i]}_psnr_best.vtk'), predict_points_value)
+                        # save_vtk(self.compress_opt.Path, os.path.join(self.Log.decompressed_dir, f'decompressed_{new_attribute_name_list[i]}_psnr_best.vtk'), predict_points_value)
 
                     self.Log.log_metrics({f'{new_attribute_name_list[i]}_psnr': psnr[i]}, sampler.epochs_count)  # TODO
                     time_eval += (time.time() - time_eval_start)

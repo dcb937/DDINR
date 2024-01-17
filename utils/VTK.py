@@ -249,3 +249,5 @@ def extract_offset_and_base_string(s):
 
 if __name__ == "__main__":
     file_path = 'D:\MyDesktop\hp\Desktop\DDINR\data\\tetBox_0.vtk'
+    l = [1,2,3]
+    print(l[:])
