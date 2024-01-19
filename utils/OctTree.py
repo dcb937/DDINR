@@ -62,7 +62,13 @@ class Node():
             if point[0] >= self.d1 and point[0] < self.d2 and point[1] >= self.h1 and point[1] < self.h2 and point[2] >= self.w1 and point[2] < self.w2:
                 self.points_array.append(point)
                 self.points_value_array.append(point_value)
-        self.points_array, self.points_value_array = torch.stack(self.points_array, dim=0), torch.stack(self.points_value_array, dim=0)
+
+        if len(self.points_array) > 0 and len(self.points_value_array) > 0:
+            self.points_array = torch.stack(self.points_array, dim=0)
+            self.points_value_array = torch.stack(self.points_value_array, dim=0)
+        else:
+            self.points_array = torch.tensor([])
+            self.points_value_array = torch.tensor([])
 
         self.points_array.to(device)
         self.points_value_array.to(device)
@@ -137,8 +143,10 @@ class OctTreeMLP(nn.Module):
     """init tree structure"""
 
     def init_tree(self):
+        print('init tree...')
         self.base_node = Node(parent=None, level=0, points_array=self.points_array, points_value_array=self.points_value_array, di=0, hi=0, wi=0, device=self.device)
         self.init_tree_dfs(self.base_node)
+        print('init tree finished')
 
     def init_tree_dfs(self, node):  # 用于深度优先搜索（DFS）方式创建八叉树的所有节点。每个节点代表数据的一个子区域。
         if node.level < self.max_level:
@@ -211,7 +219,7 @@ class OctTreeMLP(nn.Module):
             self.net_structure[f'Level{node.level}'][f'{node.di}-{node.hi}-{node.wi}'] = '{}->{}->{}({}&{}&{})'.format(
                 hyper['input'], hyper['hidden'], hyper['output'], hyper['layer'], hyper['act'], hyper['output_act'])
 
-        print(f'At level {node.level}, number of param of this node is {node.param}. num: {node.num}, var: {node.var}')
+        print(f'At level {node.level}, number of param of this node is {node.actual_param}. num: {node.num}, var: {node.var}')
 
         children = node.children
         for child in children:
