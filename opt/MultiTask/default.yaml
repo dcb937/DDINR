@@ -1,73 +1,73 @@
 Dynamic:
   - PRODUCT:
     - CONCAT:
-      - CompressFramwork.Path: data/DLR-internal.vtu # data/DLR-internal.vtu # data/tetBox_5000.vtk
+      - CompressFramwork.Path: data/DLR-internal.vtu # data/DLR-internal.vtu  data/tetBox_5000.vtk data/tetBox_0.vtk
         
     - CONCAT:
       - CompressFramwork.Ratio: 64
 
     - CONCAT:
       - CompressFramwork.Train.batch_size: 524288
-        CompressFramwork.Train.epochs: 40000
+        CompressFramwork.Train.epochs: 20000
         CompressFramwork.Eval.batch_size: 524288   # 废弃
         CompressFramwork.Eval.epochs: 1000
 
     - CONCAT:
       - CompressFramwork:
           VTK:
-            PointOrCell: 'point'          # point cell 一次只能选一种，因为这两个的输入不同
+            PointOrCell: 'cell'          # point cell 一次只能选一种，因为这两个的输入不同
             attribute: [ 'p' ]      # [nuTilda]
 
     - CONCAT:
+#      - CompressFramwork:
+#          Network:
+#            max_level: 1
+#            allocation_scheme: num
+#            act: Sine  # Sine, ReLU, LeakyReLU0.01, Sigmoid, Tanh
+#            layer: 3
+#        Log.project_name: MutliTask0
+#      - CompressFramwork:
+#          Network:
+#            max_level: 2
+#            allocation_scheme: num
+#            act: Sine  # Sine, ReLU, LeakyReLU0.01, Sigmoid, Tanh
+#            layer: 3
+#        Log.project_name: MutliTask1
       - CompressFramwork:
           Network:
             max_level: 2
             allocation_scheme: num
             act: LeakyReLU0.01  # Sine, ReLU, LeakyReLU0.01, Sigmoid, Tanh
             layer: 3
-        Log.project_name: MutliTask0
-      - CompressFramwork:
-          Network:
-            max_level: 2
-            allocation_scheme: num
-            act: Sine  # Sine, ReLU, LeakyReLU0.01, Sigmoid, Tanh
-            layer: 3
-        Log.project_name: MutliTask1
-      - CompressFramwork:
-          Network:
-            max_level: 2
-            allocation_scheme: num
-            act: Sine  # Sine, ReLU, LeakyReLU0.01, Sigmoid, Tanh
-            layer: 5
         Log.project_name: MutliTask2
-      - CompressFramwork:
-          Network:
-            max_level: 2
-            allocation_scheme: num_var
-            act: Sine  # Sine, ReLU, LeakyReLU0.01, Sigmoid, Tanh
-            layer: 4
-        Log.project_name: MutliTask3
-      - CompressFramwork:
-          Network:
-            max_level: 3
-            allocation_scheme: num
-            act: Sine  # Sine, ReLU, LeakyReLU0.01, Sigmoid, Tanh
-            layer: 3
-        Log.project_name: MutliTask4
-      - CompressFramwork:
-          Network:
-            max_level: 3
-            allocation_scheme: num
-            act: Sine  # Sine, ReLU, LeakyReLU0.01, Sigmoid, Tanh
-            layer: 4
-        Log.project_name: MutliTask5
-      - CompressFramwork:
-          Network:
-            max_level: 5
-            allocation_scheme: num
-            act: Sine  # Sine, ReLU, LeakyReLU0.01, Sigmoid, Tanh
-            layer: 3
-        Log.project_name: MutliTask5
+#      - CompressFramwork:
+#          Network:
+#            max_level: 2
+#            allocation_scheme: num_var
+#            act: Sine  # Sine, ReLU, LeakyReLU0.01, Sigmoid, Tanh
+#            layer: 4
+#        Log.project_name: MutliTask3
+#      - CompressFramwork:
+#          Network:
+#            max_level: 3
+#            allocation_scheme: num
+#            act: Sine  # Sine, ReLU, LeakyReLU0.01, Sigmoid, Tanh
+#            layer: 3
+#        Log.project_name: MutliTask4
+#      - CompressFramwork:
+#          Network:
+#            max_level: 3
+#            allocation_scheme: num
+#            act: Sine  # Sine, ReLU, LeakyReLU0.01, Sigmoid, Tanh
+#            layer: 4
+#        Log.project_name: MutliTask5
+#      - CompressFramwork:
+#          Network:
+#            max_level: 5
+#            allocation_scheme: num
+#            act: Sine  # Sine, ReLU, LeakyReLU0.01, Sigmoid, Tanh
+#            layer: 3
+#        Log.project_name: MutliTask6
 
 Static:
   Reproduc: 
@@ -90,7 +90,7 @@ Static:
         gamma: 0.2
       weight: [2001,65535,0.01]
     Eval:
-      batch_size: 262144   # 废弃
+      batch_size: 262144
       epochs: 1000
       device: cuda
     Preprocess:

@@ -58,6 +58,7 @@ class PointSampler:
         self.epochs = epochs
         self.device = device
         self.data = data
+        self.length = self.epochs*math.ceil(self.data.shape[0]/self.origin_batch_size)
 
         self.pop_size = data.shape[0] / 8**max_level    # 所谓pop_size指的是划分到最后的叶节点的大小
         self.evaled_epochs = []

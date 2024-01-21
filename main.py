@@ -52,7 +52,7 @@ class CompressFramework:
             loss.backward()
             optimizer.step()
             lr_scheduler.step()
-            pbar.set_postfix_str("loss={:.6f}".format(loss.item()))
+            pbar.set_postfix_str("loss={:.8f}".format(loss.item()))
             pbar.update(1)
             if sampler.judge_eval(self.compress_opt.Eval.epochs):
                 time_eval_start = time.time()
