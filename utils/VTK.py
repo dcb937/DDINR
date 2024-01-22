@@ -11,8 +11,11 @@ origin_points = None
 new_attribute_name_list = []
 vtk_size_bytes = 0
 PointOrCell = None
-# 用于存储位置与 cell 的对应关系
-cell_point_map = []
+reader = None
+unstructured_grid = None
+# # 用于存储位置与 cell 的对应关系
+# cell_point_map = []
+
 
 def parse_and_read_vtk(opt):
     global PointOrCell, new_attribute_name_list, vtk_size_bytes
@@ -24,6 +27,7 @@ def parse_and_read_vtk(opt):
         raise ValueError("opt.VTK.PointOrCell must be either 'point' or 'cell'.")
     if not os.path.exists(data_path):
         raise FileNotFoundError(f"The file {data_path} does not exist.")
+    update_reader(data_path)
 
     aggregated_value_array = None
     if attribute_name_list == []:
@@ -51,6 +55,14 @@ def parse_and_read_vtk(opt):
     print('VTK parsing and reading finished.')
 
     return PointOrCell_array, aggregated_value_array
+
+def update_reader(file_path):
+    global reader, unstructured_grid
+    print('Update reader...')
+    reader = vtk_or_vtu_reader(file_path)
+    reader.SetFileName(file_path)
+    reader.Update()
+    unstructured_grid = reader.GetOutput()
 
 def get_new_attribute_name_list():
     global new_attribute_name_list
@@ -87,10 +99,10 @@ def vtk_or_vtu_writer(file_path):
 
 def get_vtk_attribute_size_bytes(file_path, PointOrCell, attribute_name):
     print('Getting attribute size of vtk or vtu file')
-    reader = vtk_or_vtu_reader(file_path)
-    reader.SetFileName(file_path)
-    reader.Update()
-    unstructured_grid = reader.GetOutput()
+    # reader = vtk_or_vtu_reader(file_path)
+    # reader.SetFileName(file_path)
+    # reader.Update()
+    # unstructured_grid = reader.GetOutput()
     size = 0
     if attribute_name:        # 指明了属性名，即只看那个属性的大小
         if PointOrCell == 'point':
@@ -116,13 +128,13 @@ def get_vtk_attribute_size_bytes(file_path, PointOrCell, attribute_name):
 
 def save_vtk(input_file_path, output_file_path, points_value):
     global new_attribute_name_list, PointOrCell
-    # 读取现有的VTK文件
-    reader = vtk_or_vtu_reader(input_file_path)
-    reader.SetFileName(input_file_path)  # 设置输入文件名
-    reader.Update()
-
-    # 获取已有的VTK数据
-    vtk_data = reader.GetOutput()
+    # # 读取现有的VTK文件
+    # reader = vtk_or_vtu_reader(input_file_path)
+    # reader.SetFileName(input_file_path)  # 设置输入文件名
+    # reader.Update()
+    #
+    # # 获取已有的VTK数据
+    # vtk_data = reader.GetOutput()
 
     if PointOrCell == 'point':
         # 获取点数据
@@ -159,13 +171,13 @@ def save_vtk(input_file_path, output_file_path, points_value):
     writer.Write()
 
 def get_VTK_all_attributes(data_path, PointOrCell):
-    # 创建并设置VTK读取器
-    reader = vtk_or_vtu_reader(data_path)
-    reader.SetFileName(data_path)
-    reader.Update()
+    # # 创建并设置VTK读取器
+    # reader = vtk_or_vtu_reader(data_path)
+    # reader.SetFileName(data_path)
+    # reader.Update()
 
-    # 获取VTK文件的输出
-    unstructured_grid = reader.GetOutput()
+    # # 获取VTK文件的输出
+    # unstructured_grid = reader.GetOutput()
 
     # 获取所有属性
     attributes_list = []
@@ -186,12 +198,12 @@ def readVTK_on_attribute(data_path, PointOrCell, attribute_name):
     print('Reading VTK file')
     print(f'Option: {PointOrCell}.{attribute_name}')
 
-    # 创建并设置 VTK 读取器
-    reader = vtk_or_vtu_reader(data_path)
-    reader.SetFileName(data_path)
-    reader.Update()
-
-    unstructured_grid = reader.GetOutput()
+    # # 创建并设置 VTK 读取器
+    # reader = vtk_or_vtu_reader(data_path)
+    # reader.SetFileName(data_path)
+    # reader.Update()
+    #
+    # unstructured_grid = reader.GetOutput()
     if PointOrCell == 'point':
         if unstructured_grid.GetPointData().HasArray(attribute_name):
             attribute = unstructured_grid.GetPointData().GetArray(attribute_name)
@@ -231,7 +243,7 @@ def readVTK_on_attribute(data_path, PointOrCell, attribute_name):
             points_value_list.append(value)
 
     elif PointOrCell == 'cell':
-        global cell_point_map
+        # global cell_point_map
         # 获取所有点的坐标
         points = unstructured_grid.GetPoints()
         # 遍历每个Cell
@@ -253,8 +265,8 @@ def readVTK_on_attribute(data_path, PointOrCell, attribute_name):
             avg_y = sum_y / numPoints
             avg_z = sum_z / numPoints
             point = (avg_x, avg_y, avg_z)
-            if len(cell_point_map) != num_cells:
-                cell_point_map.append(i)
+            # if len(cell_point_map) != num_cells:
+            #     cell_point_map.append(i)
             points_list.append(point)
             value = attribute.GetTuple(i)
             points_value_list.append(value)

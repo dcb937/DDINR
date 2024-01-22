@@ -150,6 +150,7 @@ class OctTreeMLP(nn.Module):
         self.data_path = opt.Path
         self.device = opt.Train.device
         self.points_array = points_array
+        # self.points_array, self.side_info_1 = normalize_data(points_array, opt.Preprocess.normal_min, opt.Preprocess.normal_max)
         self.points_value_array, self.side_info = normalize_data(points_value_array, opt.Preprocess.normal_min, opt.Preprocess.normal_max)
         self.points_array, self.points_value_array = torch.Tensor(self.points_array), torch.Tensor(self.points_value_array)
         self.loss_weight = opt.Train.weight
@@ -322,6 +323,7 @@ class OctTreeMLP(nn.Module):
         self.predict_points, self.predict_points_value = sort_in_3D_axies(self.predict_points, self.predict_points_value)
         self.move2device(device=self.device)
         return self.predict_points, invnormalize_data(self.predict_points_value, **self.side_info)
+        # return invnormalize_data(self.predict_points, **self.side_info_1), invnormalize_data(self.predict_points_value, **self.side_info)
 
     """cal loss during training"""
 

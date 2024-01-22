@@ -8,7 +8,7 @@ Dynamic:
 
     - CONCAT:
       - CompressFramwork.Train.batch_size: 524288
-        CompressFramwork.Train.epochs: 20000
+        CompressFramwork.Train.epochs: 30000
         CompressFramwork.Eval.batch_size: 524288   # 废弃
         CompressFramwork.Eval.epochs: 1000
 
@@ -28,17 +28,17 @@ Dynamic:
 #        Log.project_name: MutliTask0
 #      - CompressFramwork:
 #          Network:
-#            max_level: 2
+#            max_level: 3
 #            allocation_scheme: num
 #            act: Sine  # Sine, ReLU, LeakyReLU0.01, Sigmoid, Tanh
-#            layer: 3
+#            layer: 5
 #        Log.project_name: MutliTask1
       - CompressFramwork:
           Network:
             max_level: 3
             allocation_scheme: num
             act: Sine  # Sine, ReLU, LeakyReLU0.01, Sigmoid, Tanh
-            layer: 3
+            layer: 6
         Log.project_name: MutliTask2
 #      - CompressFramwork:
 #          Network:
@@ -85,7 +85,7 @@ Static:
         type: Adamax
         lr: 1e-3
       lr_scheduler:
-        name: MultiStepLR
+        name: MultiStepLR   # none  MultiStepLR
         milestones: [20000,50000]
         gamma: 0.2
       weight: [2001,65535,0.01]
