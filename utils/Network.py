@@ -26,7 +26,7 @@ def ActInit(net, act):
     if act == 'Sine':
         net.apply(sine_init)
         net[0].apply(first_layer_sine_init)
-        print('Param init...')
+        # print('Param init...')
     else:
         pass
 

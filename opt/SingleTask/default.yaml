@@ -27,13 +27,13 @@ CompressFramwork:
   Network:
     input: 3
     output: 1      # 废弃
-    max_level: 2
-    allocation_scheme: num_var
+    max_level: 3
+    allocation_scheme: num
     act: Sine  # Sine, ReLU, LeakyReLU0.01, Sigmoid, Tanh
     layer: 3
     w0: 30
   VTK:
-    PointOrCell: 'point'          # point cell 一次只能选一种，因为这两个的输入不同(?
+    PointOrCell: 'cell'          # point cell 一次只能选一种，因为这两个的输入不同(?
     attribute: ['p']      # [nuTilda]
 
 Log: 

@@ -33,6 +33,17 @@ def invnormalize_data(data:np.ndarray, scale_min, scale_max, data_min, data_max,
     data = data.astype(dtype=dtype)
     return data
 
+def binary_search(tensor, dim, value, find_first):
+    """二分查找"""
+    low, high = 0, tensor.size(0) - 1
+    while low <= high:
+        mid = (low + high) // 2
+        if (find_first and tensor[mid, dim] >= value) or (not find_first and tensor[mid, dim] > value):
+            high = mid - 1
+        else:
+            low = mid + 1
+    return low
+
 class Node():
     def __init__(self, parent, level, points_array, points_value_array, di, hi, wi, device):
         self.level = level
@@ -58,17 +69,30 @@ class Node():
         # 属于自己的那一块
         # TODO 可以考虑ghost cell，如果后续出现缝隙的话
         assert points_array.shape[0] == points_value_array.shape[0]
-        for point, point_value in zip(points_array, points_value_array):
-            if point[0] >= self.d1 and point[0] < self.d2 and point[1] >= self.h1 and point[1] < self.h2 and point[2] >= self.w1 and point[2] < self.w2:
-                self.points_array.append(point)
-                self.points_value_array.append(point_value)
 
-        if len(self.points_array) > 0 and len(self.points_value_array) > 0:
-            self.points_array = torch.stack(self.points_array, dim=0)
-            self.points_value_array = torch.stack(self.points_value_array, dim=0)
-        else:
-            self.points_array = torch.tensor([])
-            self.points_value_array = torch.tensor([])
+        print(f'At level {level}, node begins to init...', flush=True)
+        if level != 0:
+            # 对每个维度使用二分查找确定边界
+            start_idx = binary_search(self.parent.points_array, 0, self.d1, True)
+            end_idx = binary_search(self.parent.points_array, 0, self.d2, False)
+
+            # 使用切片操作提取感兴趣的部分
+            filtered_points = self.parent.points_array[start_idx:end_idx]
+            filtered_values = self.parent.points_value_array[start_idx:end_idx]
+
+            # 使用向量化操作进一步过滤
+            mask = (filtered_points[:, 1] >= self.h1) & (filtered_points[:, 1] < self.h2) & \
+                   (filtered_points[:, 2] >= self.w1) & (filtered_points[:, 2] < self.w2)
+            self.points_array = filtered_points[mask]
+            self.points_value_array = filtered_values[mask]
+        else:      # 第一层节点就一个，直接给
+            self.points_array = points_array
+            self.points_value_array = points_value_array
+
+            self.points_array = torch.Tensor(self.points_array)
+            self.points_value_array = torch.Tensor(self.points_value_array)
+
+        print('Node finished init', flush=True)
 
         self.points_array.to(device)
         self.points_value_array.to(device)

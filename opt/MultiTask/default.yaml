@@ -35,9 +35,9 @@ Dynamic:
 #        Log.project_name: MutliTask1
       - CompressFramwork:
           Network:
-            max_level: 2
+            max_level: 3
             allocation_scheme: num
-            act: LeakyReLU0.01  # Sine, ReLU, LeakyReLU0.01, Sigmoid, Tanh
+            act: Sine  # Sine, ReLU, LeakyReLU0.01, Sigmoid, Tanh
             layer: 3
         Log.project_name: MutliTask2
 #      - CompressFramwork:
