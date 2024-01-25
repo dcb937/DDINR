@@ -3,7 +3,7 @@ Reproduc:
   benchmark: false
   deterministic: true
 CompressFramwork:
-  Path: data/DLR-internal.vtu
+  Path: data/tetBox_5000.vtk
   Ratio: 64
   Train:
     batch_size: 524288  # 524288 # 262144
@@ -27,14 +27,14 @@ CompressFramwork:
   Network:
     input: 3
     output: 1      # 废弃
-    max_level: 3
+    max_level: 1
     allocation_scheme: num
     act: Sine  # Sine, ReLU, LeakyReLU0.01, Sigmoid, Tanh
-    layer: 3
+    layer: 7
     w0: 30
   VTK:
-    PointOrCell: 'cell'          # point cell 一次只能选一种，因为这两个的输入不同(?
-    attribute: ['p']      # [nuTilda]
+    PointOrCell: 'point'          # point cell 一次只能选一种，因为这两个的输入不同(?
+    attribute: ['nuTilda']      # [nuTilda]
 
 Log: 
   project_name: default

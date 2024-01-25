@@ -189,6 +189,8 @@ def get_VTK_all_attributes(data_path, PointOrCell):
         cell_data = unstructured_grid.GetCellData()
         for i in range(cell_data.GetNumberOfArrays()):
             attributes_list.append(cell_data.GetArrayName(i))
+    else:
+        sys.exit(f'Unrecognized: {PointOrCell}, must be `point` or `cell`')
 
     return attributes_list
 
@@ -298,5 +300,42 @@ def check_points_has_duplicates(points_list):
     return has_duplicates
 
 if __name__ == "__main__":
-    file_path = 'D:\MyDesktop\hp\Desktop\DDINR\data\\tetBox_0.vtk'
-    readVTK_on_attribute(file_path, 'cell', 'nuTilda')
+    file_path = r'D:\MyDesktop\hp\Desktop\DDINR\data\tetBox_0.vtk'
+    update_reader(file_path)
+    attribute = unstructured_grid.GetCellData().GetArray('nuTilda')
+    print('finish read')
+
+    # 创建颜色映射表
+    lookupTable = vtk.vtkLookupTable()
+    lookupTable.SetRange(attribute.GetRange())  # 设置为 nuTilda 的范围
+    lookupTable.SetNumberOfTableValues(256)
+    lookupTable.Build()
+
+    # 创建映射器并设置颜色映射表
+    mapper = vtk.vtkDataSetMapper()
+    mapper.SetInputData(unstructured_grid)
+    mapper.SetLookupTable(lookupTable)
+    mapper.SetScalarRange(attribute.GetRange())  # 设置为 nuTilda 的范围
+    mapper.SetScalarModeToUseCellData()  # 使用单元数据
+    unstructured_grid.GetCellData().SetActiveScalars("p")  # 设置活动标量为 nuTilda
+
+    # 创建演员并设置映射器
+    actor = vtk.vtkActor()
+    actor.SetMapper(mapper)
+
+    # 创建渲染器
+    renderer = vtk.vtkRenderer()
+    renderer.AddActor(actor)
+    renderer.SetBackground(0.1, 0.2, 0.4)  # 可以设置一个您喜欢的背景颜色
+
+    # 创建渲染窗口
+    renderWindow = vtk.vtkRenderWindow()
+    renderWindow.AddRenderer(renderer)
+
+    # 创建交互器
+    renderWindowInteractor = vtk.vtkRenderWindowInteractor()
+    renderWindowInteractor.SetRenderWindow(renderWindow)
+
+    # 开始渲染和交互
+    renderWindow.Render()
+    renderWindowInteractor.Start()

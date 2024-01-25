@@ -9,8 +9,8 @@ Dynamic:
     - CONCAT:
       - CompressFramwork.Train.batch_size: 524288
         CompressFramwork.Train.epochs: 30000
-        CompressFramwork.Eval.batch_size: 524288   # 废弃
-        CompressFramwork.Eval.epochs: 1000
+        CompressFramwork.Eval.batch_size: 524288
+        CompressFramwork.Eval.epochs: 500
 
     - CONCAT:
       - CompressFramwork:
