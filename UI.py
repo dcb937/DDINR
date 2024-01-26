@@ -22,6 +22,8 @@ def update_reader(file_path, PointOrCell):
     if file_path == last_read_vtk_file_path:
         return
     last_read_vtk_file_path = file_path
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"The file {file_path} does not exist.")
     print('Update reader...')
     reader = vtk_or_vtu_reader(file_path)
     reader.SetFileName(file_path)
@@ -38,14 +40,6 @@ def vtk_or_vtu_reader(file_path):
         sys.exit(f'Unrecognized file type: {file_path[-4:]}')
 
 def get_VTK_all_attributes(data_path, PointOrCell):
-    # # 创建并设置VTK读取器
-    # reader = vtk_or_vtu_reader(data_path)
-    # reader.SetFileName(data_path)
-    # reader.Update()
-
-    # # 获取VTK文件的输出
-    # unstructured_grid = reader.GetOutput()
-
     # 获取所有属性
     attributes_list = []
     if PointOrCell == 'point':
@@ -60,6 +54,8 @@ def get_VTK_all_attributes(data_path, PointOrCell):
         sys.exit(f'Unrecognized: {PointOrCell}, must be `point` or `cell`')
 
     return attributes_list
+
+
 
 class MainWindow(QtWidgets.QMainWindow):
     loading_model = False
@@ -78,6 +74,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.PointOrCell = 'point'
         self.selected_attribute = ''
+        self.selected_colormap = 'default'
+        self.selected_SurfaceOrEdge = 'Edge'
 
         # Full screen layout
         layout = QHBoxLayout()
@@ -90,21 +88,29 @@ class MainWindow(QtWidgets.QMainWindow):
         self.load_box.addWidget(QLabel("Load from: "))
         self.load_from_dropdown = QComboBox()
         self.load_from_dropdown.addItems(["Data", "Model"])
-        self.load_from_dropdown.currentTextChanged.connect(self.data_box_update)
+        self.load_from_dropdown.currentTextChanged.connect(self.loadFrom_update)
         self.load_box.addWidget(self.load_from_dropdown)
 
         self.datamodel_box = QHBoxLayout()
         self.datamodel_box.addWidget(QLabel("Model/data: "))
-        self.models_dropdown = self.load_models_dropdown()
-        self.models_dropdown.currentTextChanged.connect(self.load_model)
-        self.datamodel_box.addWidget(self.models_dropdown)
+        self.datamodel_dropdown = self.load_datamodel_dropdown()
+        self.datamodel_dropdown.currentTextChanged.connect(self.datamodel_update)
+        self.datamodel_box.addWidget(self.datamodel_dropdown)
 
         self.PointOrCell_box = QHBoxLayout()
-        self.PointOrCell_box.addWidget(QLabel("point or cell: "))
+        self.PointOrCell_box.addWidget(QLabel("Point or Cell: "))
         self.PointOrCell_dropdown = QComboBox()
         self.PointOrCell_dropdown.addItems(["point", "cell"])
         self.PointOrCell_dropdown.currentTextChanged.connect(self.PointOrCell_update)
         self.PointOrCell_box.addWidget(self.PointOrCell_dropdown)
+
+        self.SurfaceOrEdge_box = QHBoxLayout()
+        self.SurfaceOrEdge_box.addWidget(QLabel("Surface or Edge: "))
+        self.SurfaceOrEdge_dropdown = QComboBox()
+        self.SurfaceOrEdge_dropdown.addItems(["Edge", "Surface"])
+        self.SurfaceOrEdge_dropdown.currentTextChanged.connect(self.SurfaceOrEdge_update)
+        self.SurfaceOrEdge_box.addWidget(self.SurfaceOrEdge_dropdown)
+        self.SurfaceOrEdge_dropdown.setEnabled(self.PointOrCell == 'cell')
 
         self.attribute_box = QHBoxLayout()
         self.attribute_box.addWidget(QLabel("Attribute: "))
@@ -117,6 +123,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self.render_button.clicked.connect(self.start_rendering)  # 连接按钮点击事件到槽函数
         self.button_box.addWidget(self.render_button)  # 将按钮添加到设置面板的布局中
 
+        self.saveImg_button_box = QHBoxLayout()
+        self.saveImg_button = QPushButton("Save Image")
+        self.saveImg_button.clicked.connect(self.Save_Image)  # 连接按钮点击事件到槽函数
+        self.saveImg_button_box.addWidget(self.saveImg_button)  # 将按钮添加到设置面板的布局中
+
         # VTK Renderer
         self.vtkWidget = QVTKRenderWindowInteractor(self.frame)
         self.renderer = vtk.vtkRenderer()
@@ -125,9 +136,12 @@ class MainWindow(QtWidgets.QMainWindow):
         self.settings_ui.addLayout(self.load_box)
         self.settings_ui.addLayout(self.datamodel_box)
         self.settings_ui.addLayout(self.PointOrCell_box)
-        self.settings_ui.addLayout(self.button_box)
+        self.settings_ui.addLayout(self.SurfaceOrEdge_box)
+        # self.settings_ui.addLayout(self.button_box)
         self.settings_ui.addLayout(self.attribute_box)
+        # self.settings_ui.addLayout(self.saveImg_button_box)
         self.settings_ui.addStretch()
+        self.settings_ui.insertLayout(layout.count() - 1, self.saveImg_button_box)
 
         # UI full layout
         layout.addWidget(self.vtkWidget, stretch=4)
@@ -140,20 +154,26 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.show()
 
-    def data_box_update(self, s):
+    def loadFrom_update(self, s):
         self.loading_model = "Model" in s
         if(self.loading_model):
-            self.models_dropdown.clear()
-            self.models_dropdown.addItems(self.available_models)
+            self.datamodel_dropdown.currentTextChanged.disconnect(self.datamodel_update)
+            self.datamodel_dropdown.clear()
+            self.datamodel_dropdown.addItems(self.available_models)
+            self.datamodel_dropdown.currentTextChanged.connect(self.datamodel_update)
         else:
-            self.models_dropdown.clear()
-            self.models_dropdown.addItems(self.available_data)
+            self.datamodel_dropdown.currentTextChanged.disconnect(self.datamodel_update)
+            self.datamodel_dropdown.clear()
+            self.datamodel_dropdown.addItems(self.available_data)
+            self.datamodel_dropdown.currentTextChanged.connect(self.datamodel_update)
 
     def PointOrCell_update(self, s):
         self.PointOrCell = s
+        self.SurfaceOrEdge_dropdown.setEnabled(self.PointOrCell == 'cell')
+        self.render()
 
 
-    def load_models_dropdown(self):
+    def load_datamodel_dropdown(self):
         dropdown = QComboBox()
         dropdown.addItems(self.available_data)
         return dropdown
@@ -166,20 +186,22 @@ class MainWindow(QtWidgets.QMainWindow):
     def start_rendering(self):
         print("Rendering...")
         self.render()
+        # update attribute_list
+        self.attribute_dropdown.currentTextChanged.disconnect(self.attribute_update)
+        self.attribute_dropdown.clear()
+        self.attribute_dropdown.addItems(attribute_list)
+        self.attribute_dropdown.currentTextChanged.connect(self.attribute_update)
 
-        self.update_attribute_dropdown(attribute_list)
 
-    def load_model(self, s):
+    def datamodel_update(self, s):
         if s == "":
             return
-        # self.status_text_update.emit(f"Loading model {s}...")
         if(self.loading_model):
-            self.selected_file_path = os.path.join(savedmodels_folder, s)
-            # self.render_worker.load_new_model.emit(s)
+            self.selected_file_path = os.path.join(savedmodels_folder, f'{s}\decompressed\decompressed_psnr_final.vtk')
         else:
             self.selected_file_path = os.path.join(data_folder, s)
-            # self.render_worker.load_new_data.emit(s)
-        # self.status_text_update.emit("")
+
+        self.start_rendering()
 
     def attribute_update(self, s):
         if s == "":
@@ -187,39 +209,118 @@ class MainWindow(QtWidgets.QMainWindow):
         self.selected_attribute = s
         self.render()
 
-    def update_attribute_dropdown(self, items):
-        # 断开信号以避免代码触发的变更调用槽函数
-        self.attribute_dropdown.currentTextChanged.disconnect(self.attribute_update)
+    def SurfaceOrEdge_update(self, s):
+        if s == "":
+            return
+        self.selected_SurfaceOrEdge = s
+        self.render()
 
-        # 清空并更新下拉菜单项
-        self.attribute_dropdown.clear()
-        self.attribute_dropdown.addItems(items)
-
-        # 重新连接信号和槽函数
-        self.attribute_dropdown.currentTextChanged.connect(self.attribute_update)
 
     def render(self):
         # Read the VTK file
         update_reader(self.selected_file_path, self.PointOrCell)
 
-        mapper = vtk.vtkDataSetMapper()
-        mapper.SetInputConnection(reader.GetOutputPort())
 
         if self.selected_attribute != '':
             if self.PointOrCell == 'cell':
                 unstructured_grid.GetCellData().SetActiveScalars(self.selected_attribute)  # 设置活动标量为 nuTilda
             else:
                 unstructured_grid.GetPointData().SetActiveScalars(self.selected_attribute)  # 设置活动标量为 nuTilda
+        else:
+            self.selected_attribute = attribute_list[0]
+            if self.PointOrCell == 'cell':
+                unstructured_grid.GetCellData().SetActiveScalars(self.selected_attribute)  # 设置活动标量为 nuTilda
+            else:
+                unstructured_grid.GetPointData().SetActiveScalars(self.selected_attribute)  # 设置活动标量为 nuTilda
 
         actor = vtk.vtkActor()
+        if self.PointOrCell == 'point':
+            mapper = vtk.vtkDataSetMapper()
+            mapper.SetInputData(unstructured_grid)
+            mapper.SetScalarModeToUsePointData()  # 确保使用点数据
+
+            actor.GetProperty().SetRepresentationToPoints()  # 设置为点表示
+            actor.GetProperty().SetPointSize(0.1)  # 设置点的大小
+
+        else:
+            if self.selected_SurfaceOrEdge == 'Edge':
+                # 使用 vtkExtractEdges 提取边缘
+                extractEdges = vtk.vtkExtractEdges()
+                extractEdges.SetInputData(unstructured_grid)
+
+                # 创建 vtkPolyDataMapper 来渲染提取的边缘
+                mapper = vtk.vtkDataSetMapper()
+                mapper.SetInputConnection(extractEdges.GetOutputPort())
+            else:
+                mapper = vtk.vtkDataSetMapper()
+                mapper.SetInputConnection(reader.GetOutputPort())
+
         actor.SetMapper(mapper)
 
+        # 创建一个新的颜色查找表
+        lookupTable = vtk.vtkLookupTable()
+        lookupTable.SetNumberOfTableValues(256)  # 设置颜色条的大小
+        lookupTable.Build()
+        # 为查找表设置颜色范围
+        for i in range(256):
+            # 示例：创建一个从蓝色到红色的渐变
+            r = i / 255.0
+            g = 0
+            b = (255 - i) / 255.0
+            lookupTable.SetTableValue(i, r, g, b, 1.0)  # RGBA
+        # 将自定义的颜色查找表应用于映射器
+        mapper.SetLookupTable(lookupTable)
+        # 颜色条
+        scalarBar = vtk.vtkScalarBarActor()
+        scalarBar.SetLookupTable(mapper.GetLookupTable())
+        # scalarBar.SetTitle("Color Scale")  # 设置色条的标题
+        # titleTextProperty = scalarBar.GetTitleTextProperty()
+        # titleTextProperty.SetColor(0, 0, 0)
+        scalarBar.GetLabelTextProperty().SetColor(0, 0, 0)  # 设置文字颜色
+        scalarBar.GetLabelTextProperty().SetFontSize(1)  # 设置字体大小
+        # scalarBar.SetNumberOfLabels(5)  # 设置标签数量
+        # 设置色条的大小和位置
+        scalarBar.SetWidth(0.05)  # 色条宽度（相对于渲染窗口的比例）
+        scalarBar.SetHeight(0.3)  # 色条高度（相对于渲染窗口的比例）
+        scalarBar.SetPosition(0.9, 0.05)  # 色条在渲染窗口中的位置（x, y）
         # Update the renderer
         self.renderer.RemoveAllViewProps()  # Remove previous data
+        self.renderer.AddActor(scalarBar)
         self.renderer.AddActor(actor)
         self.renderer.SetBackground(1, 1, 1)
         self.renderer.ResetCamera()
         self.vtkWidget.GetRenderWindow().Render()
+
+    def Save_Image(self):
+        options = QFileDialog.Options()
+        filePath, _ = QFileDialog.getSaveFileName(self,
+                                                  "Save Image",
+                                                  "rendered_image.png",
+                                                  "PNG Files (*.png);;JPEG Files (*.jpg);;All Files (*)",
+                                                  options=options)
+
+        if filePath:  # 如果用户选择了文件
+
+            renderWindow = self.vtkWidget.GetRenderWindow()
+            # 创建vtkWindowToImageFilter以从渲染窗口捕获图像
+            windowToImageFilter = vtk.vtkWindowToImageFilter()
+            windowToImageFilter.SetInput(renderWindow)
+            windowToImageFilter.Update()
+
+            # 根据文件扩展名选择合适的writer
+            if filePath.lower().endswith('.png'):
+                writer = vtk.vtkPNGWriter()
+            elif filePath.lower().endswith('.jpg') or filePath.lower().endswith('.jpeg'):
+                writer = vtk.vtkJPEGWriter()
+            else:
+                print("Unsupported file format")
+                return
+
+            # 创建一个图片写入器并保存图像
+            writer.SetFileName(filePath)
+            writer.SetInputConnection(windowToImageFilter.GetOutputPort())
+            writer.Write()
+
 
 if __name__ == "__main__":
     app = QtWidgets.QApplication(sys.argv)
