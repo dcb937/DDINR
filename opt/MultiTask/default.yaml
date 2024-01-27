@@ -15,7 +15,7 @@ Dynamic:
     - CONCAT:
       - CompressFramwork:
           VTK:
-            PointOrCell: 'cell'          # point cell 一次只能选一种，因为这两个的输入不同
+            PointOrCell: 'point'          # point cell 一次只能选一种，因为这两个的输入不同
             attribute: [ 'p' ]      # [nuTilda]
 
     - CONCAT:
@@ -26,48 +26,63 @@ Dynamic:
 #            act: Sine  # Sine, ReLU, LeakyReLU0.01, Sigmoid, Tanh
 #            layer: 3
 #        Log.project_name: MutliTask0
-#      - CompressFramwork:
-#          Network:
-#            max_level: 3
-#            allocation_scheme: num
-#            act: Sine  # Sine, ReLU, LeakyReLU0.01, Sigmoid, Tanh
-#            layer: 5
-#        Log.project_name: MutliTask1
+
       - CompressFramwork:
+          Ratio: 32
           Network:
-            max_level: 3
+            max_level: 2
             allocation_scheme: num
             act: Sine  # Sine, ReLU, LeakyReLU0.01, Sigmoid, Tanh
             layer: 6
-        Log.project_name: MutliTask2
-#      - CompressFramwork:
-#          Network:
-#            max_level: 2
-#            allocation_scheme: num_var
-#            act: Sine  # Sine, ReLU, LeakyReLU0.01, Sigmoid, Tanh
-#            layer: 4
-#        Log.project_name: MutliTask3
-#      - CompressFramwork:
-#          Network:
-#            max_level: 3
-#            allocation_scheme: num
-#            act: Sine  # Sine, ReLU, LeakyReLU0.01, Sigmoid, Tanh
-#            layer: 3
-#        Log.project_name: MutliTask4
-#      - CompressFramwork:
-#          Network:
-#            max_level: 3
-#            allocation_scheme: num
-#            act: Sine  # Sine, ReLU, LeakyReLU0.01, Sigmoid, Tanh
-#            layer: 4
-#        Log.project_name: MutliTask5
-#      - CompressFramwork:
-#          Network:
-#            max_level: 5
-#            allocation_scheme: num
-#            act: Sine  # Sine, ReLU, LeakyReLU0.01, Sigmoid, Tanh
-#            layer: 3
-#        Log.project_name: MutliTask6
+        Log.project_name: Ratio_32
+      - CompressFramwork:
+          Ratio: 64
+          Network:
+            max_level: 2
+            allocation_scheme: num
+            act: Sine  # Sine, ReLU, LeakyReLU0.01, Sigmoid, Tanh
+            layer: 6
+        Log.project_name: Ratio_64
+      - CompressFramwork:
+          Ratio: 128
+          Network:
+            max_level: 2
+            allocation_scheme: num
+            act: Sine  # Sine, ReLU, LeakyReLU0.01, Sigmoid, Tanh
+            layer: 6
+        Log.project_name: Ratio_128
+      - CompressFramwork:
+          Ratio: 256
+          Network:
+            max_level: 2
+            allocation_scheme: num
+            act: Sine  # Sine, ReLU, LeakyReLU0.01, Sigmoid, Tanh
+            layer: 6
+        Log.project_name: Ratio_256
+      - CompressFramwork:
+          Ratio: 512
+          Network:
+            max_level: 2
+            allocation_scheme: num
+            act: Sine  # Sine, ReLU, LeakyReLU0.01, Sigmoid, Tanh
+            layer: 6
+        Log.project_name: Ratio_512
+      - CompressFramwork:
+          Ratio: 1024
+          Network:
+            max_level: 2
+            allocation_scheme: num
+            act: Sine  # Sine, ReLU, LeakyReLU0.01, Sigmoid, Tanh
+            layer: 6
+        Log.project_name: Ratio_1024
+      - CompressFramwork:
+          Ratio: 2048
+          Network:
+            max_level: 2
+            allocation_scheme: num
+            act: Sine  # Sine, ReLU, LeakyReLU0.01, Sigmoid, Tanh
+            layer: 6
+        Log.project_name: Ratio_2048
 
 Static:
   Reproduc: 
