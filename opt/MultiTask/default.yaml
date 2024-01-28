@@ -2,87 +2,86 @@ Dynamic:
   - PRODUCT:
     - CONCAT:
       - CompressFramwork.Path: data/DLR-internal.vtu # data/DLR-internal.vtu  data/tetBox_5000.vtk data/tetBox_0.vtk
-        
+
     - CONCAT:
       - CompressFramwork.Ratio: 64
 
     - CONCAT:
       - CompressFramwork.Train.batch_size: 524288
-        CompressFramwork.Train.epochs: 30000
+        CompressFramwork.Train.epochs: 12000
         CompressFramwork.Eval.batch_size: 524288
         CompressFramwork.Eval.epochs: 500
 
-    - CONCAT:
-      - CompressFramwork:
-          VTK:
-            PointOrCell: 'point'          # point cell 一次只能选一种，因为这两个的输入不同
-            attribute: [ 'p' ]      # [nuTilda]
-
-    - CONCAT:
+#    - CONCAT:
 #      - CompressFramwork:
-#          Network:
-#            max_level: 1
-#            allocation_scheme: num
-#            act: Sine  # Sine, ReLU, LeakyReLU0.01, Sigmoid, Tanh
-#            layer: 3
-#        Log.project_name: MutliTask0
-
+#          VTK:
+#            PointOrCell: 'point'          # point cell 一次只能选一种，因为这两个的输入不同
+#            attribute: [ 'p' ]      # [nuTilda]
+#
+    - CONCAT:
       - CompressFramwork:
-          Ratio: 32
-          Network:
-            max_level: 2
-            allocation_scheme: num
-            act: Sine  # Sine, ReLU, LeakyReLU0.01, Sigmoid, Tanh
-            layer: 6
-        Log.project_name: Ratio_32
-      - CompressFramwork:
+          Path: data/pitzDaily_78_tetra.vtk
+          Train.epochs: 12000
+          VTK:
+            PointOrCell: 'cell'          # point cell 一次只能选一种，因为这两个的输入不同
+            attribute: [ 'epsilon' ]
           Ratio: 64
           Network:
             max_level: 2
             allocation_scheme: num
             act: Sine  # Sine, ReLU, LeakyReLU0.01, Sigmoid, Tanh
             layer: 6
-        Log.project_name: Ratio_64
+        Log.project_name: pitzDaily_78_tetra_cell_epsilon
       - CompressFramwork:
-          Ratio: 128
+          Path: data/motorBike_500_tetra.vtk
+          VTK:
+            PointOrCell: 'cell'          # point cell 一次只能选一种，因为这两个的输入不同
+            attribute: [ 'omega' ]
+          Ratio: 64
           Network:
             max_level: 2
             allocation_scheme: num
             act: Sine  # Sine, ReLU, LeakyReLU0.01, Sigmoid, Tanh
             layer: 6
-        Log.project_name: Ratio_128
+        Log.project_name: motorBike_500_tetra_cell_omega
       - CompressFramwork:
-          Ratio: 256
+          Path: data/cylinderCrossFlow3D_16000_tetra.vtk
+          VTK:
+            PointOrCell: 'cell'          # point cell 一次只能选一种，因为这两个的输入不同
+            attribute: [ 'p' ]
+          Ratio: 64
           Network:
             max_level: 2
             allocation_scheme: num
             act: Sine  # Sine, ReLU, LeakyReLU0.01, Sigmoid, Tanh
             layer: 6
-        Log.project_name: Ratio_256
+        Log.project_name: cylinderCrossFlow3D_16000_tetra_cell_p
       - CompressFramwork:
-          Ratio: 512
+          Path: data/res_1d5.org_1_20000_tetra.vtk
+          VTK:
+            PointOrCell: 'point'          # point cell 一次只能选一种，因为这两个的输入不同
+            attribute: [ '_Wall' ]
+          Ratio: 64
           Network:
             max_level: 2
             allocation_scheme: num
             act: Sine  # Sine, ReLU, LeakyReLU0.01, Sigmoid, Tanh
             layer: 6
-        Log.project_name: Ratio_512
+        Log.project_name: res_1d5.org_1_20000_tetra_point_Wall
       - CompressFramwork:
-          Ratio: 1024
+          Path: data/tetBox_5000_tetra.vtk
+          Train.epochs: 12000
+          VTK:
+            PointOrCell: 'cell'          # point cell 一次只能选一种，因为这两个的输入不同
+            attribute: [ 'nuTilda' ]
+          Ratio: 64
           Network:
             max_level: 2
             allocation_scheme: num
             act: Sine  # Sine, ReLU, LeakyReLU0.01, Sigmoid, Tanh
             layer: 6
-        Log.project_name: Ratio_1024
-      - CompressFramwork:
-          Ratio: 2048
-          Network:
-            max_level: 2
-            allocation_scheme: num
-            act: Sine  # Sine, ReLU, LeakyReLU0.01, Sigmoid, Tanh
-            layer: 6
-        Log.project_name: Ratio_2048
+        Log.project_name: tetBox_5000_tetra_cell_nuTilda
+
 
 Static:
   Reproduc: 

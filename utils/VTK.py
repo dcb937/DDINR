@@ -170,7 +170,7 @@ def save_vtk(input_file_path, output_file_path, points_value):
     writer.SetFileName(output_file_path)  # 设置输出文件名
     writer.SetInputData(vtk_data)
     writer.Write()
-    print('vtk saved')
+    print('\nvtk saved')
 
 def get_VTK_all_attributes(data_path, PointOrCell):
     # # 创建并设置VTK读取器
