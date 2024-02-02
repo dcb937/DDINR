@@ -3,7 +3,7 @@ Reproduc:
   benchmark: false
   deterministic: true
 CompressFramwork:
-  Path: data/tetBox_5000.vtk
+  Path: data/DLR-internal.vtu
   Ratio: 64
   Train:
     batch_size: 524288  # 524288 # 262144
@@ -34,7 +34,7 @@ CompressFramwork:
     w0: 30
   VTK:
     PointOrCell: 'point'          # point cell 一次只能选一种，因为这两个的输入不同(?
-    attribute: ['nuTilda']      # [nuTilda]
+    attribute: []      # [nuTilda]
 
 Log: 
   project_name: default

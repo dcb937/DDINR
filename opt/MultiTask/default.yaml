@@ -8,79 +8,90 @@ Dynamic:
 
     - CONCAT:
       - CompressFramwork.Train.batch_size: 524288
-        CompressFramwork.Train.epochs: 12000
+        CompressFramwork.Train.epochs: 40000
         CompressFramwork.Eval.batch_size: 524288
         CompressFramwork.Eval.epochs: 500
 
-#    - CONCAT:
-#      - CompressFramwork:
-#          VTK:
-#            PointOrCell: 'point'          # point cell 一次只能选一种，因为这两个的输入不同
-#            attribute: [ 'p' ]      # [nuTilda]
-#
     - CONCAT:
       - CompressFramwork:
-          Path: data/pitzDaily_78_tetra.vtk
-          Train.epochs: 12000
-          VTK:
-            PointOrCell: 'cell'          # point cell 一次只能选一种，因为这两个的输入不同
-            attribute: [ 'epsilon' ]
-          Ratio: 64
-          Network:
-            max_level: 2
-            allocation_scheme: num
-            act: Sine  # Sine, ReLU, LeakyReLU0.01, Sigmoid, Tanh
-            layer: 6
-        Log.project_name: pitzDaily_78_tetra_cell_epsilon
-      - CompressFramwork:
-          Path: data/motorBike_500_tetra.vtk
-          VTK:
-            PointOrCell: 'cell'          # point cell 一次只能选一种，因为这两个的输入不同
-            attribute: [ 'omega' ]
-          Ratio: 64
-          Network:
-            max_level: 2
-            allocation_scheme: num
-            act: Sine  # Sine, ReLU, LeakyReLU0.01, Sigmoid, Tanh
-            layer: 6
-        Log.project_name: motorBike_500_tetra_cell_omega
-      - CompressFramwork:
-          Path: data/cylinderCrossFlow3D_16000_tetra.vtk
-          VTK:
-            PointOrCell: 'cell'          # point cell 一次只能选一种，因为这两个的输入不同
-            attribute: [ 'p' ]
-          Ratio: 64
-          Network:
-            max_level: 2
-            allocation_scheme: num
-            act: Sine  # Sine, ReLU, LeakyReLU0.01, Sigmoid, Tanh
-            layer: 6
-        Log.project_name: cylinderCrossFlow3D_16000_tetra_cell_p
-      - CompressFramwork:
-          Path: data/res_1d5.org_1_20000_tetra.vtk
           VTK:
             PointOrCell: 'point'          # point cell 一次只能选一种，因为这两个的输入不同
-            attribute: [ '_Wall' ]
-          Ratio: 64
-          Network:
-            max_level: 2
-            allocation_scheme: num
-            act: Sine  # Sine, ReLU, LeakyReLU0.01, Sigmoid, Tanh
-            layer: 6
-        Log.project_name: res_1d5.org_1_20000_tetra_point_Wall
+            attribute: []      # [nuTilda]
+#
+
+    - CONCAT:                    # 这行别注释。。。
+
       - CompressFramwork:
-          Path: data/tetBox_5000_tetra.vtk
-          Train.epochs: 12000
-          VTK:
-            PointOrCell: 'cell'          # point cell 一次只能选一种，因为这两个的输入不同
-            attribute: [ 'nuTilda' ]
+          Path: data/DLR-internal.vtu
           Ratio: 64
           Network:
             max_level: 2
             allocation_scheme: num
             act: Sine  # Sine, ReLU, LeakyReLU0.01, Sigmoid, Tanh
-            layer: 6
-        Log.project_name: tetBox_5000_tetra_cell_nuTilda
+            layer: 10
+        Log.project_name: DLR-internal_normalization_test_all_attr
+#      - CompressFramwork:
+#          Path: data/pitzDaily_78_tetra.vtk
+#          Train.epochs: 12000
+#          VTK:
+#            PointOrCell: 'cell'          # point cell 一次只能选一种，因为这两个的输入不同
+#            attribute: [ 'epsilon' ]
+#          Ratio: 64
+#          Network:
+#            max_level: 2
+#            allocation_scheme: num
+#            act: Sine  # Sine, ReLU, LeakyReLU0.01, Sigmoid, Tanh
+#            layer: 6
+#        Log.project_name: pitzDaily_78_tetra_cell_epsilon
+#      - CompressFramwork:
+#          Path: data/motorBike_500_tetra.vtk
+#          VTK:
+#            PointOrCell: 'point'          # point cell 一次只能选一种，因为这两个的输入不同
+#            attribute: [ 'omega' ]
+#          Ratio: 64
+#          Network:
+#            max_level: 2
+#            allocation_scheme: num
+#            act: Sine  # Sine, ReLU, LeakyReLU0.01, Sigmoid, Tanh
+#            layer: 6
+#        Log.project_name: motorBike_500_tetra_cell_omega
+#      - CompressFramwork:
+#          Path: data/cylinderCrossFlow3D_16000_tetra.vtk
+#          VTK:
+#            PointOrCell: 'cell'          # point cell 一次只能选一种，因为这两个的输入不同
+#            attribute: [ 'p' ]
+#          Ratio: 64
+#          Network:
+#            max_level: 2
+#            allocation_scheme: num
+#            act: Sine  # Sine, ReLU, LeakyReLU0.01, Sigmoid, Tanh
+#            layer: 6
+#        Log.project_name: cylinderCrossFlow3D_16000_tetra_cell_p
+#      - CompressFramwork:
+#          Path: data/res_1d5.org_1_20000_tetra.vtk
+#          VTK:
+#            PointOrCell: 'point'          # point cell 一次只能选一种，因为这两个的输入不同
+#            attribute: [ '_Wall' ]
+#          Ratio: 64
+#          Network:
+#            max_level: 2
+#            allocation_scheme: num
+#            act: Sine  # Sine, ReLU, LeakyReLU0.01, Sigmoid, Tanh
+#            layer: 6
+#        Log.project_name: res_1d5.org_1_20000_tetra_point_Wall
+#      - CompressFramwork:
+#          Path: data/tetBox_5000_tetra.vtk
+#          Train.epochs: 12000
+#          VTK:
+#            PointOrCell: 'cell'          # point cell 一次只能选一种，因为这两个的输入不同
+#            attribute: [ 'nuTilda' ]
+#          Ratio: 64
+#          Network:
+#            max_level: 2
+#            allocation_scheme: num
+#            act: Sine  # Sine, ReLU, LeakyReLU0.01, Sigmoid, Tanh
+#            layer: 6
+#        Log.project_name: tetBox_5000_tetra_cell_nuTilda
 
 
 Static:

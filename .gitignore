@@ -4,3 +4,6 @@ outputs
 data/tetBox_5000.vtk
 opt/MultiTask/temp_opt*
 data/
+ply/
+pcd/
+test*
