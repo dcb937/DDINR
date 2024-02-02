@@ -120,7 +120,7 @@ def get_vtk_attribute_size_bytes(file_path, PointOrCell, attribute_name):
         else:
             sys.exit(f"Wrong opt: '{PointOrCell}'")
 
-        num = attribute.GetNumberOfTuples() * attribute.GetNumberOfComponents()
+        num = attribute.GetNumberOfTuples() * attribute_dimension
     else:               # 未指明了属性名，即算所有属性的大小
         sys.exit('not finished yet')
 
