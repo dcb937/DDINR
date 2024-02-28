@@ -7,7 +7,7 @@ CompressFramwork:
   Ratio: 64
   Train:
     batch_size: 524288  # 524288 # 262144
-    epochs: 30000
+    epochs: 40000
     device: cuda
     optimizer: 
       type: Adamax
@@ -27,14 +27,14 @@ CompressFramwork:
   Network:
     input: 3
     output: 1      # 废弃
-    max_level: 1
+    max_level: 2
     allocation_scheme: num
     act: Sine  # Sine, ReLU, LeakyReLU0.01, Sigmoid, Tanh
-    layer: 7
+    layer: 6
     w0: 30
   VTK:
-    PointOrCell: 'point'          # point cell 一次只能选一种，因为这两个的输入不同(?
-    attribute: []      # [nuTilda]
+    PointOrCell: 'point'          # point cell 一次只能选一种
+    attribute: []      # ['p']   列表内可以选择多个，若为空，则默认选择所有属性
 
 Log: 
   project_name: default

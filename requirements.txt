@@ -56,4 +56,4 @@ urllib3
 packaging
 vtk
 PyQt5
-open3d
+pyqtgraph

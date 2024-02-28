@@ -1,11 +1,14 @@
 import sys
 import vtk
 import os
+import numpy as np
 from PyQt5 import QtWidgets
 from PyQt5.QtWidgets import QApplication, QMainWindow, QPushButton, \
     QWidget, QLabel, QHBoxLayout, QVBoxLayout, QStackedLayout, \
     QComboBox, QSlider, QFileDialog
 from vtkmodules.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
+import pyqtgraph as pg
+from utils.TransferFunctionEditor import Plot, TransferFunctionEditor
 
 project_folder_path = os.path.dirname(os.path.abspath(__file__))
 data_folder = os.path.join(project_folder_path, "data")
@@ -57,14 +60,16 @@ def get_VTK_all_attributes(data_path, PointOrCell):
 
 
 
+
+
 class MainWindow(QtWidgets.QMainWindow):
     loading_model = False
 
     def __init__(self, parent=None):
         super(MainWindow, self).__init__(parent)
         self.setWindowTitle("VTK Renderer")
-        self.resize(500,300)  # 必须得有。。。。
-        self.showMaximized()  # 最大化窗口
+        self.resize(2000,1000)  # 必须得有。。。。
+        # self.showMaximized()  # 最大化窗口
         self.frame = QtWidgets.QFrame()
 
         # Find all available models/colormaps
@@ -97,10 +102,17 @@ class MainWindow(QtWidgets.QMainWindow):
         self.datamodel_dropdown.currentTextChanged.connect(self.datamodel_update)
         self.datamodel_box.addWidget(self.datamodel_dropdown)
 
+        self.colormap_box = QHBoxLayout()
+        self.colormap_box.addWidget(QLabel("Colormap: "))
+        self.colormap_dropdown = self.load_colormap_dropdown()
+        self.colormap_dropdown.currentTextChanged.connect(self.colormap_update)
+        self.colormap_box.addWidget(self.colormap_dropdown)
+        self.colormap_dropdown.setEnabled(False)
+
         self.PointOrCell_box = QHBoxLayout()
-        self.PointOrCell_box.addWidget(QLabel("Point or Cell: "))
+        self.PointOrCell_box.addWidget(QLabel("Mode: "))
         self.PointOrCell_dropdown = QComboBox()
-        self.PointOrCell_dropdown.addItems(["point", "cell"])
+        self.PointOrCell_dropdown.addItems(["point", "cell", "Volume"])
         self.PointOrCell_dropdown.currentTextChanged.connect(self.PointOrCell_update)
         self.PointOrCell_box.addWidget(self.PointOrCell_dropdown)
 
@@ -123,6 +135,27 @@ class MainWindow(QtWidgets.QMainWindow):
         self.render_button.clicked.connect(self.start_rendering)  # 连接按钮点击事件到槽函数
         self.button_box.addWidget(self.render_button)  # 将按钮添加到设置面板的布局中
 
+        # self.plot_box = QHBoxLayout()
+        # self.plot_widget = TransferFunctionEditor(self)
+        # self.plot_box.addWidget(self.plot_widget)
+        self.transfer_function_box = QHBoxLayout()
+        self.tf_editor = TransferFunctionEditor(self)
+        x = np.linspace(0.0, 1.0, 4)
+        pos = np.column_stack((x, x))
+        win = pg.GraphicsLayoutWidget()
+        view = win.addViewBox(row=0, col=1, rowspan=2, colspan=2)
+        view.enableAutoRange(axis='xy', enable=False)
+        view.setYRange(0, 1.0, padding=0.1, update=True)
+        view.setXRange(0, 1.0, padding=0.1, update=True)
+        view.setBackgroundColor([255, 255, 255, 255])
+        view.setMouseEnabled(x=False, y=False)
+        x_axis = pg.AxisItem("bottom", linkView=view)
+        y_axis = pg.AxisItem("left", linkView=view)
+        win.addItem(x_axis, row=2, col=1, colspan=2)
+        win.addItem(y_axis, row=0, col=0, rowspan=2)
+        view.addItem(self.tf_editor)
+        self.transfer_function_box.addWidget(win)
+
         self.saveImg_button_box = QHBoxLayout()
         self.saveImg_button = QPushButton("Save Image")
         self.saveImg_button.clicked.connect(self.Save_Image)  # 连接按钮点击事件到槽函数
@@ -136,9 +169,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self.settings_ui.addLayout(self.load_box)
         self.settings_ui.addLayout(self.datamodel_box)
         self.settings_ui.addLayout(self.PointOrCell_box)
+        self.settings_ui.addLayout(self.colormap_box)
         self.settings_ui.addLayout(self.SurfaceOrEdge_box)
         # self.settings_ui.addLayout(self.button_box)
         self.settings_ui.addLayout(self.attribute_box)
+        self.settings_ui.addLayout(self.transfer_function_box)
         # self.settings_ui.addLayout(self.saveImg_button_box)
         self.settings_ui.addStretch()
         self.settings_ui.insertLayout(layout.count() - 1, self.saveImg_button_box)
@@ -153,6 +188,12 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setCentralWidget(self.centralWidget)
 
         self.show()
+
+    # def resizeEvent(self, event):
+    #     w = self.vtkWidget.frameGeometry().width()
+    #     h = self.vtkWidget.frameGeometry().height()
+    #     self.vtkWidget.resize.emit(w, h)
+    #     QMainWindow.resizeEvent(self, event)
 
     def loadFrom_update(self, s):
         self.loading_model = "Model" in s
@@ -170,12 +211,18 @@ class MainWindow(QtWidgets.QMainWindow):
     def PointOrCell_update(self, s):
         self.PointOrCell = s
         self.SurfaceOrEdge_dropdown.setEnabled(self.PointOrCell == 'cell')
+        self.colormap_dropdown.setEnabled(self.PointOrCell == 'Volume')
         self.render()
 
 
     def load_datamodel_dropdown(self):
         dropdown = QComboBox()
         dropdown.addItems(self.available_data)
+        return dropdown
+
+    def load_colormap_dropdown(self):
+        dropdown = QComboBox()
+        dropdown.addItems(self.available_tfs)
         return dropdown
 
     def load_attribute_dropdown(self):
@@ -202,6 +249,19 @@ class MainWindow(QtWidgets.QMainWindow):
             self.selected_file_path = os.path.join(data_folder, s)
 
         self.start_rendering()
+
+    def colormap_update(self, s):
+        if s == "":
+            return
+        self.selected_colormap = s
+        self.loadColormap(self.selected_colormap)
+        data_for_tf_editor = np.stack(
+            [self.opacity_control_points,self.opacity_values],
+            axis=0
+        ).transpose()
+        self.tf_editor.setData(pos=data_for_tf_editor)
+        if self.selected_file_path is not None:
+            self.render()
 
     def attribute_update(self, s):
         if s == "":
@@ -320,6 +380,45 @@ class MainWindow(QtWidgets.QMainWindow):
             writer.SetFileName(filePath)
             writer.SetInputConnection(windowToImageFilter.GetOutputPort())
             writer.Write()
+
+    def loadColormap(self, colormapname):
+        '''
+        Loads a colormap exported from Paraview. Assumes colormapname is a
+        file path to the json to be loaded
+        '''
+        colormaps_folder = tf_folder
+        file_location = os.path.join(colormaps_folder, colormapname)
+        import json
+        if (os.path.exists(file_location)):
+            with open(file_location) as f:
+                color_data = json.load(f)[0]
+        else:
+            print("Colormap file doesn't exist")
+            exit()
+            return
+
+        # Load all RGB data
+        rgb_data = color_data['RGBPoints']
+        self.color_control_points = np.array(rgb_data[0::4], dtype=np.float32)
+        self.color_control_points = self.color_control_points - self.color_control_points[0]
+        self.color_control_points = self.color_control_points / self.color_control_points[-1]
+        r = np.array(rgb_data[1::4], dtype=np.float32)
+        g = np.array(rgb_data[2::4], dtype=np.float32)
+        b = np.array(rgb_data[3::4], dtype=np.float32)
+        self.color_values = np.stack([r, g, b], axis=1)
+
+        # If alpha points set, load those, otherwise ramp opacity
+        if ("Points" in color_data.keys()):
+            a_data = color_data['Points']
+            self.opacity_control_points = np.array(a_data[0::4], dtype=np.float32)
+            self.opacity_control_points = self.opacity_control_points - self.opacity_control_points[0]
+            self.opacity_control_points = self.opacity_control_points / self.opacity_control_points[-1]
+            self.opacity_values = np.array(a_data[1::4], dtype=np.float32)
+
+        else:
+            self.opacity_control_points = np.array([0.0, 1.0], dtype=np.float32)
+            self.opacity_values = np.array([0.0, 1.0], dtype=np.float32)
+        print('1111')
 
 
 if __name__ == "__main__":

@@ -100,7 +100,7 @@ Static:
     benchmark: false
     deterministic: true
   CompressFramwork:
-    Path: data/test.tif
+    Path: data/test.tif    # 废弃
     Ratio: 64
     Train:
       batch_size: 262144
@@ -126,8 +126,8 @@ Static:
       output: 1          # 废弃
       w0: 30
     VTK:
-      PointOrCell: 'point'          # point cell 一次只能选一种，因为这两个的输入不同
-      attribute: [ 'p' ]      # [nuTilda]
+      PointOrCell: 'point'          # point cell 一次只能选一种
+      attribute: [ 'p' ]      # ['p']   列表内可以选择多个，若为空，则默认选择所有属性
 
   Log: 
     project_name: default
