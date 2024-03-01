@@ -8,7 +8,7 @@ from PyQt5.QtWidgets import QApplication, QMainWindow, QPushButton, \
     QComboBox, QSlider, QFileDialog
 from vtkmodules.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
 import pyqtgraph as pg
-from utils.TransferFunctionEditor import Plot, TransferFunctionEditor
+from utils.TransferFunctionEditor import TransferFunctionEditor
 
 project_folder_path = os.path.dirname(os.path.abspath(__file__))
 data_folder = os.path.join(project_folder_path, "data")
@@ -21,6 +21,8 @@ last_read_vtk_file_path = None   # 为了避免重复加载同一个vtk
 attribute_list = None
 
 def update_reader(file_path, PointOrCell):
+    if PointOrCell == 'Volume':
+        PointOrCell = 'point'
     global reader, unstructured_grid, last_read_vtk_file_path, attribute_list
     if file_path == last_read_vtk_file_path:
         return
@@ -79,7 +81,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.PointOrCell = 'point'
         self.selected_attribute = ''
-        self.selected_colormap = 'default'
+        self.selected_colormap = 'Coolwarm.json'
         self.selected_SurfaceOrEdge = 'Edge'
 
         # Full screen layout
@@ -140,6 +142,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # self.plot_box.addWidget(self.plot_widget)
         self.transfer_function_box = QHBoxLayout()
         self.tf_editor = TransferFunctionEditor(self)
+        self.tf_editor.valueChanged.connect(self.tf_changed)  # 将自定义 Widget 的信号连接到槽函数
         x = np.linspace(0.0, 1.0, 4)
         pos = np.column_stack((x, x))
         win = pg.GraphicsLayoutWidget()
@@ -212,7 +215,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.PointOrCell = s
         self.SurfaceOrEdge_dropdown.setEnabled(self.PointOrCell == 'cell')
         self.colormap_dropdown.setEnabled(self.PointOrCell == 'Volume')
-        self.render()
+        if self.PointOrCell == 'cell' or self.PointOrCell == 'point':
+            self.render()
+        else:
+            self.VolumeRender()
 
 
     def load_datamodel_dropdown(self):
@@ -232,7 +238,12 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def start_rendering(self):
         print("Rendering...")
-        self.render()
+        if self.PointOrCell == 'Volume':
+            update_reader(self.selected_file_path, self.PointOrCell)
+            self.selected_attribute = attribute_list[0]
+            self.VolumeRender()
+        else:
+            self.render()
         # update attribute_list
         self.attribute_dropdown.currentTextChanged.disconnect(self.attribute_update)
         self.attribute_dropdown.clear()
@@ -261,13 +272,16 @@ class MainWindow(QtWidgets.QMainWindow):
         ).transpose()
         self.tf_editor.setData(pos=data_for_tf_editor)
         if self.selected_file_path is not None:
-            self.render()
+            self.VolumeRender()
 
     def attribute_update(self, s):
         if s == "":
             return
         self.selected_attribute = s
-        self.render()
+        if self.PointOrCell == 'Volume':
+            self.VolumeRender()
+        else:
+            self.render()
 
     def SurfaceOrEdge_update(self, s):
         if s == "":
@@ -351,6 +365,121 @@ class MainWindow(QtWidgets.QMainWindow):
         self.renderer.ResetCamera()
         self.vtkWidget.GetRenderWindow().Render()
 
+    def VolumeRender(self):
+        assert unstructured_grid is not None
+        point_data = unstructured_grid.GetPointData()
+        point_data.SetActiveScalars(self.selected_attribute)
+        attr_array = point_data.GetArray(self.selected_attribute)
+
+        # 获取 'nuTilda' 数组的最大值和最小值
+        attr_range = attr_array.GetRange()
+        self.current_attr_min = attr_range[0]
+        self.current_attr_max = attr_range[1]
+
+        print("min:", self.current_attr_min)
+        print("max:", self.current_attr_max)
+
+        # 创建VolumeMapper
+        volume_mapper = vtk.vtkProjectedTetrahedraMapper()
+        volume_mapper.SetInputData(unstructured_grid)
+
+        # 创建VolumeProperty
+        self.volume_property = vtk.vtkVolumeProperty()
+        self.volume_property.ShadeOff()
+        self.loadColormap(self.selected_colormap)
+
+        data_for_tf_editor = np.stack(
+            [self.opacity_control_points, self.opacity_values],
+            axis=0
+        ).transpose()
+        self.tf_editor.setData(pos=data_for_tf_editor)
+
+        color_transfer_function = vtk.vtkColorTransferFunction()
+        # 添加颜色节点
+        for i in range(len(self.color_control_points)):
+            color_transfer_function.AddRGBPoint(
+                self.current_attr_min + self.color_control_points[i] * (self.current_attr_max - self.current_attr_min),
+                self.color_values[i][0], self.color_values[i][1], self.color_values[i][2])
+        self.volume_property.SetColor(color_transfer_function)
+
+        # 颜色条
+        scalarBar = vtk.vtkScalarBarActor()
+        scalarBar.SetLookupTable(color_transfer_function)
+        scalarBar.GetLabelTextProperty().SetColor(0, 0, 0)  # 设置文字颜色
+        scalarBar.GetLabelTextProperty().SetFontSize(1)  # 设置字体大小
+        # scalarBar.SetNumberOfLabels(5)  # 设置标签数量
+        # 设置色条的大小和位置
+        scalarBar.SetWidth(0.05)  # 色条宽度（相对于渲染窗口的比例）
+        scalarBar.SetHeight(0.3)  # 色条高度（相对于渲染窗口的比例）
+        scalarBar.SetPosition(0.9, 0.05)  # 色条在渲染窗口中的位置（x, y）
+
+        opacity_transfer_function = vtk.vtkPiecewiseFunction()
+        # 添加不透明度节点
+        for i in range(len(self.opacity_control_points)):
+            opacity_transfer_function.AddPoint(self.current_attr_min + self.opacity_control_points[i] * (
+                        self.current_attr_max - self.current_attr_min), self.opacity_values[i])
+        self.volume_property.SetScalarOpacity(opacity_transfer_function)
+
+        self.volume_property.SetInterpolationTypeToLinear()
+        # 创建Volume
+        self.volume = vtk.vtkVolume()
+        self.volume.SetMapper(volume_mapper)
+        self.volume.SetProperty(self.volume_property)
+
+        self.renderer.RemoveAllViewProps()  # Remove previous data
+        self.renderer.AddVolume(self.volume)
+        self.renderer.AddActor(scalarBar)
+        self.renderer.SetBackground(1, 1, 1)
+        self.renderer.ResetCamera()
+        self.vtkWidget.GetRenderWindow().Render()
+
+        # # 添加Volume到渲染器
+        # renderer.AddVolume(volume)
+        #
+        # # 设置渲染器背景颜色
+        # renderer.SetBackground(55.0, 55.0, 55.0)
+        # render_window.Render()
+        # interactor.Start()
+
+    def tf_changed(self, pos):
+        opacity_transfer_function = vtk.vtkPiecewiseFunction()
+        # 添加不透明度节点
+        for i in range(pos.shape[0]):
+            opacity_transfer_function.AddPoint(self.current_attr_min + pos[i, 0] * (self.current_attr_max - self.current_attr_min), pos[i, 1])
+        self.volume_property.SetScalarOpacity(opacity_transfer_function)
+        self.volume_property.SetInterpolationTypeToLinear()
+        self.volume.SetProperty(self.volume_property)
+
+        self.renderer.RemoveVolume(self.volume)   # 只移除volume而保留颜色条
+        self.renderer.AddVolume(self.volume)
+        self.renderer.SetBackground(1, 1, 1)
+        # self.renderer.ResetCamera()
+        self.vtkWidget.GetRenderWindow().Render()
+
+
+
+    # def UpdateTransferFunction(self):
+    #     self.loadColormap('Coolwarm.json')
+    #     data_for_tf_editor = np.stack(
+    #         [self.opacity_control_points, self.opacity_values],
+    #         axis=0
+    #     ).transpose()
+    #     self.tf_editor.setData(pos=data_for_tf_editor)
+    #
+    #     color_transfer_function = vtk.vtkColorTransferFunction()
+    #     # 添加颜色节点
+    #     for i in len(self.color_control_points):
+    #         color_transfer_function.AddRGBPoint(self.current_attr_min + self.color_control_points[i] * (self.current_attr_max - self.current_attr_min), self.color_values[i][0], self.color_values[i][1],self.color_values[i][2])
+    #     volume_property.SetColor(color_transfer_function)
+    #
+    #     opacity_transfer_function = vtk.vtkPiecewiseFunction()
+    #     # 添加不透明度节点
+    #     for i in len(self.opacity_control_points):
+    #         opacity_transfer_function.AddPoint(self.current_attr_min + self.opacity_control_points[i] * (self.current_attr_max - self.current_attr_min), self.opacity_values[i])
+    #     volume_property.SetScalarOpacity(opacity_transfer_function)
+    #
+    #     volume_property.SetInterpolationTypeToLinear()
+
     def Save_Image(self):
         options = QFileDialog.Options()
         filePath, _ = QFileDialog.getSaveFileName(self,
@@ -418,7 +547,6 @@ class MainWindow(QtWidgets.QMainWindow):
         else:
             self.opacity_control_points = np.array([0.0, 1.0], dtype=np.float32)
             self.opacity_values = np.array([0.0, 1.0], dtype=np.float32)
-        print('1111')
 
 
 if __name__ == "__main__":

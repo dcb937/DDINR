@@ -2,75 +2,13 @@ import sys
 import numpy as np
 from PyQt5.QtWidgets import QApplication, QWidget, QGraphicsView, QGraphicsScene
 from PyQt5.QtGui import QPainter, QPen
-from PyQt5.QtCore import Qt, QPointF
+from PyQt5.QtCore import Qt, QPointF, pyqtSignal
 import pyqtgraph as pg
-
-class Plot(QWidget):
-    def __init__(self):
-        super().__init__()
-
-        self.initUI()
-
-    def initUI(self):
-        self.setWindowTitle('Plot')
-        # self.setGeometry(0, 0, 200, 200)
-        self.scene = QGraphicsScene()
-        self.view = QGraphicsView(self.scene, self)
-
-        self.points = [(0, 0), (1, 1)]  # 默认初始情况只有两个点
-
-        self.drawPoints()
-
-    def drawPoints(self):
-        self.scene.clear()
-        # 绘制坐标轴
-        pen = QPen(Qt.black)
-        self.scene.addLine(0, self.height() / 2, self.width(), self.height() / 2, pen)
-        self.scene.addLine(self.width() / 2, 0, self.width() / 2, self.height(), pen)
-
-        # 绘制已有点和连线
-        pen.setColor(Qt.red)
-        for i in range(len(self.points)):
-            x, y = self.points[i]
-            point = QPointF(x * self.width(), self.height() - y * self.height())
-            self.scene.addEllipse(point.x() - 5, point.y() - 5, 10, 10, pen)
-            if i > 0:
-                prev_x, prev_y = self.points[i - 1]
-                prev_point = QPointF(prev_x * self.width(), self.height() - prev_y * self.height())
-                self.scene.addLine(prev_point.x(), prev_point.y(), point.x(), point.y(), pen)
-
-    def sizeHint(self):
-        return self.minimumSizeHint()
-
-    def minimumSizeHint(self):
-        return self.view.sizeHint()
-
-    def resizeEvent(self, event):
-        self.view.setGeometry(0, 0, self.width(), self.height())
-        self.drawPoints()
-
-    def mousePressEvent(self, event):
-        if event.buttons() == Qt.LeftButton:
-            x = event.pos().x() / self.width()
-            y = (self.height() - event.pos().y()) / self.height()
-            new_point = (x, y)
-
-            # 检查是否点击到已有点附近
-            for point in self.points:
-                px, py = point
-                if abs(px - x) < 0.05 and abs(py - y) < 0.05:
-                    # 删除点
-                    self.points.remove(point)
-                    self.drawPoints()
-                    return
-
-            # 添加新点
-            self.points.append(new_point)
-            self.points.sort()
-            self.drawPoints()
 
 
 class TransferFunctionEditor(pg.GraphItem):
+    valueChanged = pyqtSignal(np.ndarray)
+
     def __init__(self, parent=None):
         self.dragPoint = None
         self.dragOffset = None
@@ -122,6 +60,7 @@ class TransferFunctionEditor(pg.GraphItem):
             self.data['pos'] = new_pos
             self.setData(**self.data)
             self.lastDragPointIndex -= 1
+            self.valueChanged.emit(self.data['pos'])
 
     def mouseDragEvent(self, ev):
         if ev.button() != Qt.LeftButton:
@@ -164,6 +103,7 @@ class TransferFunctionEditor(pg.GraphItem):
             self.data['pos'][ind][1] = np.clip(ev.pos()[1] + self.dragOffset[1], 0.0, 1.0)
 
         self.updateGraph()
+        self.valueChanged.emit(self.data['pos'])
         ev.accept()
 
     def mouseClickEvent(self, event):
@@ -192,4 +132,5 @@ class TransferFunctionEditor(pg.GraphItem):
             self.data['pos'] = new_pos
             self.setData(**self.data)
             self.lastDragPointIndex = ind
+            self.valueChanged.emit(self.data['pos'])
 
