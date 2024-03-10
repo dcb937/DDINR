@@ -1,5 +1,5 @@
 # DDINR
- Implicit Neural Representation with Domain Decomposition for Unstructed Grid Data
+ Implicit Neural Representation with Domain Decomposition for Unstructured Grid Scientific Data
 
 
 
