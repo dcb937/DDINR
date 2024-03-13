@@ -10,39 +10,62 @@ Dynamic:
       - CompressFramwork.Train.batch_size: 524288
         CompressFramwork.Train.epochs: 40000
         CompressFramwork.Eval.batch_size: 524288
-        CompressFramwork.Eval.epochs: 500
+        CompressFramwork.Eval.epochs: 1000
 
     - CONCAT:
       - CompressFramwork:
           VTK:
             PointOrCell: 'point'          # point cell 一次只能选一种，因为这两个的输入不同
-            attribute: []      # [nuTilda]
+            attribute: ['p']      # [nuTilda]
 #
 
     - CONCAT:                    # 这行别注释。。。
 
-      - CompressFramwork:
-          Path: data/DLR-internal.vtu
-          Ratio: 64
-          Network:
-            max_level: 2
-            allocation_scheme: num
-            act: Sine  # Sine, ReLU, LeakyReLU0.01, Sigmoid, Tanh
-            layer: 10
-        Log.project_name: DLR-internal_normalization_test_all_attr
 #      - CompressFramwork:
-#          Path: data/pitzDaily_78_tetra.vtk
-#          Train.epochs: 12000
-#          VTK:
-#            PointOrCell: 'cell'          # point cell 一次只能选一种，因为这两个的输入不同
-#            attribute: [ 'epsilon' ]
+#          Path: data/DLR-internal.vtu
 #          Ratio: 64
 #          Network:
 #            max_level: 2
 #            allocation_scheme: num
 #            act: Sine  # Sine, ReLU, LeakyReLU0.01, Sigmoid, Tanh
-#            layer: 6
-#        Log.project_name: pitzDaily_78_tetra_cell_epsilon
+#            layer: 10
+#        Log.project_name: DLR-internal_normalization_test_all_attr
+      - CompressFramwork:
+          Ratio: 64
+          Network:
+            max_level: 2
+            is_residual: true
+            allocation_scheme: num
+            act: Sine  # Sine, ReLU, LeakyReLU0.01, Sigmoid, Tanh
+            layer: 3
+        Log.project_name: DLR-internal_point_p_residual_layer_3
+      - CompressFramwork:
+          Ratio: 64
+          Network:
+            max_level: 2
+            is_residual: true
+            allocation_scheme: num
+            act: Sine  # Sine, ReLU, LeakyReLU0.01, Sigmoid, Tanh
+            layer: 5
+        Log.project_name: DLR-internal_point_p_residual_layer_5
+      - CompressFramwork:
+          Ratio: 64
+          Network:
+            max_level: 2
+            is_residual: true
+            allocation_scheme: num
+            act: Sine  # Sine, ReLU, LeakyReLU0.01, Sigmoid, Tanh
+            layer: 7
+        Log.project_name: DLR-internal_point_p_residual_layer_7
+      - CompressFramwork:
+          Ratio: 64
+          Network:
+            max_level: 2
+            is_residual: true
+            allocation_scheme: num
+            act: Sine  # Sine, ReLU, LeakyReLU0.01, Sigmoid, Tanh
+            layer: 9
+        Log.project_name: DLR-internal_point_p_residual_layer_9
 #      - CompressFramwork:
 #          Path: data/motorBike_500_tetra.vtk
 #          VTK:
@@ -122,6 +145,7 @@ Static:
       normal_min: 0
       normal_max: 1
     Network:
+      is_residual: true
       input: 3
       output: 1          # 废弃
       w0: 30

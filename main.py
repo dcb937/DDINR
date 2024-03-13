@@ -66,21 +66,29 @@ class CompressFramework:
                     if psnr[i] > metrics[f'{new_attribute_name_list[i]}_psnr_best']:
                         metrics[f'{new_attribute_name_list[i]}_psnr_best'] = psnr[i]
                         metrics[f'{new_attribute_name_list[i]}_psnr_epoch'] = sampler.epochs_count
-                        save_tree_models(tree_mlp=tree_mlp, model_dir=os.path.join(self.Log.compressed_dir, f'models_{new_attribute_name_list[i]}_psnr_best'))
+                        if self.compress_opt.Network.is_residual == True:
+                            pass   # TODO: 未处理保存ResSine网络参数的代码
+                        else:
+                            save_tree_models(tree_mlp=tree_mlp, model_dir=os.path.join(self.Log.compressed_dir, f'models_{new_attribute_name_list[i]}_psnr_best'))
                         if step > sampler.length * 0.9:
                             save_vtk(self.compress_opt.Path, os.path.join(self.Log.decompressed_dir, f'decompressed_{new_attribute_name_list[i]}_psnr_best.vtk'), predict_points_value)
 
                     self.Log.log_metrics({f'{new_attribute_name_list[i]}_psnr': psnr[i]}, sampler.epochs_count)  # TODO
                     time_eval += (time.time() - time_eval_start)
         model_dir = os.path.join(self.Log.compressed_dir, 'models')
-        save_tree_models(tree_mlp=tree_mlp, model_dir=model_dir)
+        if self.compress_opt.Network.is_residual == True:
+            pass  # TODO: 未处理保存ResSine网络参数的代码
+        else:
+            save_tree_models(tree_mlp=tree_mlp, model_dir=model_dir)
         save_vtk(self.compress_opt.Path, os.path.join(self.Log.decompressed_dir, 'decompressed_psnr_final.vtk'),
                  predict_points_value)
 
-
-        ratio_actual = get_vtk_size_bytes()/get_folder_size(model_dir)
-        self.Log.log_metrics({'ratio_actual': ratio_actual}, 0)
-        metrics['ratio_set'], metrics['ratio_theory'], metrics['ratio_actual'] = self.compress_opt.Ratio, tree_mlp.ratio, ratio_actual
+        if self.compress_opt.Network.is_residual == True:
+            pass  # TODO: 未处理保存ResSine网络参数的代码
+        else:
+            ratio_actual = get_vtk_size_bytes()/get_folder_size(model_dir)
+            self.Log.log_metrics({'ratio_actual': ratio_actual}, 0)
+            metrics['ratio_set'], metrics['ratio_theory'], metrics['ratio_actual'] = self.compress_opt.Ratio, tree_mlp.ratio, ratio_actual
 
         compress_time = int(time.time()-time_start-time_eval)
         print('Compression time: {}s={:.2f}min={:.2f}h'.format(compress_time, compress_time/60, compress_time/3600))

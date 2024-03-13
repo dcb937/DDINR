@@ -10,6 +10,7 @@ import torch.nn.functional as F
 from utils.Sampler import create_optim, create_flattened_coords, PointSampler, create_lr_scheduler
 from utils.Network import MLP
 from utils.VTK import get_vtk_size_bytes, sort_in_3D_axies
+from utils.ResSine import FieldNet, compute_num_neurons
 
 def normalize_data(data:np.ndarray, scale_min, scale_max):
     dtype = data.dtype      # 获取到的是整个data的数据类型（在numpy中是一致的），故在后续可能遇到的不同维度不同类型的情况这里没有考虑，不过int和float都是4个byte，倒也无所谓
@@ -230,19 +231,37 @@ class OctTreeMLP(nn.Module):
                 # node.param = node.parent.param / 8
         # 根据新的设计，只有最后一层设置MLP
         if node.children == []:
-            # TODO 设计好 level数、参数个数、MLP的层数的权衡
             input, output = self.opt.Network.input, self.points_value_array.shape[1]
-            output_act = False
-            # 根据input和output的大小计算这个节点的MLP的hiden（隐藏层）的层数和output的大小
-            hidden, output = cal_hidden_output(param=node.param, layer=self.layer, input=input, output=output)
-            node.init_network(input=input, output=output, hidden=hidden, layer=self.layer, act=self.act, output_act=output_act, w0=self.opt.Network.w0)  # 构建这一节点的MLP
-            node.actual_param = sum([p.data.nelement() for p in node.net.net.parameters()])
-            if not f'Level{node.level}' in self.net_structure.keys():
-                self.net_structure[f'Level{node.level}'] = {}
-            # self.net_structure[f'Level{node.level}'][f'{node.di}-{node.hi}-{node.wi}'] = node.net.hyper
-            hyper = node.net.hyper
-            self.net_structure[f'Level{node.level}'][f'{node.di}-{node.hi}-{node.wi}'] = '{}->{}->{}({}&{}&{})'.format(
-                hyper['input'], hyper['hidden'], hyper['output'], hyper['layer'], hyper['act'], hyper['output_act'])
+            if self.opt.Network.is_residual == True:
+                class Options:
+                    def __init__(self, d_in, d_out, w0, is_residual, n_layers):
+                        self.d_in = d_in
+                        self.d_out = d_out
+                        self.w0 = w0
+                        self.is_residual = is_residual
+                        self.n_layers = n_layers
+
+                myopt = Options(d_in=input, d_out=output, w0=30, is_residual=True, n_layers=self.opt.Network.layer)
+                print('is_residual')
+                neurons = compute_num_neurons(myopt, node.param)
+                myopt.layers = []
+                for idx in range(self.opt.Network.layer):
+                    myopt.layers.append(neurons)
+                node.net = FieldNet(myopt)
+                node.actual_param = sum([p.data.nelement() for p in node.net.net.parameters()])
+
+            else:
+                output_act = False
+                # 根据input和output的大小计算这个节点的MLP的hiden（隐藏层）的层数和output的大小
+                hidden, output = cal_hidden_output(param=node.param, layer=self.layer, input=input, output=output)
+                node.init_network(input=input, output=output, hidden=hidden, layer=self.layer, act=self.act, output_act=output_act, w0=self.opt.Network.w0)  # 构建这一节点的MLP
+                node.actual_param = sum([p.data.nelement() for p in node.net.net.parameters()])
+                if not f'Level{node.level}' in self.net_structure.keys():
+                    self.net_structure[f'Level{node.level}'] = {}
+                # self.net_structure[f'Level{node.level}'][f'{node.di}-{node.hi}-{node.wi}'] = node.net.hyper
+                hyper = node.net.hyper
+                self.net_structure[f'Level{node.level}'][f'{node.di}-{node.hi}-{node.wi}'] = '{}->{}->{}({}&{}&{})'.format(
+                    hyper['input'], hyper['hidden'], hyper['output'], hyper['layer'], hyper['act'], hyper['output_act'])
 
         print(f'At level {node.level}, number of param of this node is {node.actual_param}. num: {node.num}, var: {node.var}')
 

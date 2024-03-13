@@ -3,11 +3,11 @@ Reproduc:
   benchmark: false
   deterministic: true
 CompressFramwork:
-  Path: data/DLR-internal.vtu
+  Path: data/tetBox_0.vtk # data/DLR-internal.vtu
   Ratio: 64
   Train:
     batch_size: 524288  # 524288 # 262144
-    epochs: 40000
+    epochs: 2000
     device: cuda
     optimizer: 
       type: Adamax
@@ -19,12 +19,13 @@ CompressFramwork:
     weight: [-10,0,0.00001]
   Eval:
     batch_size: 524288  # 262144
-    epochs: 1000
+    epochs: 100
     device: cuda
   Preprocess:
     normal_min: 0
     normal_max: 1
   Network:
+    is_residual: true
     input: 3
     output: 1      # 废弃
     max_level: 2
@@ -34,7 +35,7 @@ CompressFramwork:
     w0: 30
   VTK:
     PointOrCell: 'point'          # point cell 一次只能选一种
-    attribute: []      # ['p']   列表内可以选择多个，若为空，则默认选择所有属性
+    attribute: ['nuTilda']      # ['p']   列表内可以选择多个，若为空，则默认选择所有属性
 
 Log: 
   project_name: default
