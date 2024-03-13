@@ -20,6 +20,14 @@ pip install -r requirements.txt
 
 
 # Usage
+
+Before using this code, please follow these steps to manually create the necessary folders and prepare your data:
+
+1. Create a `data` folder and an `outputs` folder.
+2. Place your unstructured grid data that you need to compress into the `data` folder. Note that the data should be stored in VTK file format.
+3. Modify the corresponding training configuration files in the opt directory to match your data and training requirements.
+
+
 ### SingleTask
 
 ```bash
